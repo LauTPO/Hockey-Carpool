@@ -334,6 +334,10 @@
           </div>
         </div>
         <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Planned Departure Time (Optional)</label>
+          <input type="text" id="driverDepartureTime" placeholder="e.g. 11:15" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+        <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
           <input type="text" id="driverNotes" placeholder="e.g. Leaving near Sugden Rd" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
         </div>
@@ -437,7 +441,7 @@
         { id: 'eh-3', opponent: 'Spencer 6s', venueName: 'Fieldview Pitch Wandsworth', postcode: 'SW18 3HF', date: '2026-11-07', convocationTime: '10:15', kickoffTime: '11:30', coords: [51.4439, -0.1834] }
       ],
       cars: [
-        { id: 'car-1', matchId: 'eh-1', driverName: 'Edward K.', seatsTotal: 4, carModel: 'BMW X3', postcode: 'KT6 4BN', startLocation: 'Surbiton Station', startCoords: [51.3932, -0.3038], notes: 'Leaving near Sugden Rd' }
+        { id: 'car-1', matchId: 'eh-1', driverName: 'Edward K.', seatsTotal: 4, carModel: 'BMW X3', postcode: 'KT6 4BN', startLocation: 'Surbiton Station', startCoords: [51.3932, -0.3038], notes: 'Leaving near Sugden Rd', departureTime: '11:15' }
       ],
       passengers: [
         { id: 'pass-1', matchId: 'eh-1', name: 'Harry B.', postcode: 'KT6 4BN', pickupLocation: 'Surbiton Station', pickupCoords: [51.3930, -0.3035], assignedCarId: 'car-1' },
@@ -569,7 +573,6 @@
       return `${String(depHours).padStart(2, '0')}:${String(depMins).padStart(2, '0')}`;
     }
 
-    // Helper: Générateur de lien officiel Google Maps
     function generateGoogleMapsUrl(originPostcode, destPostcode, waypointsPostcodes = []) {
       const originStr = encodeURIComponent(originPostcode);
       const destStr = encodeURIComponent(destPostcode);
@@ -619,6 +622,15 @@
       await updateMapMarkersAndRoutes();
     }
 
+    window.updateDriverDepartureTime = function(carId, newTime) {
+      const car = db.cars.find(c => c.id === carId);
+      if (car) {
+        car.departureTime = newTime.trim();
+        saveState();
+        showToast('Departure time updated!');
+      }
+    };
+
     async function renderCarsAndPassengers(match) {
       const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
       const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
@@ -657,9 +669,6 @@
               <div class="text-[11px] text-slate-500">
                 <i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${escapeHtml(p.pickupLocation)} <span class="font-mono text-slate-700">(${escapeHtml(p.postcode)})</span>
               </div>
-              <div class="text-[10px] text-shc-magenta font-semibold mt-1">
-                <i class="fa-solid fa-clock mr-1"></i>Est. Pickup: <strong>${pickupTime}</strong> (${travelMins} min drive)
-              </div>
             </div>
             <div class="flex items-center gap-2">
               <button onclick="window.openAssignModal('${p.id}')" class="px-2.5 py-1 rounded bg-shc-green hover:bg-shc-greenDark text-white text-[11px] font-bold transition">Assign</button>
@@ -685,22 +694,16 @@
         if (car.startCoords && match.coords) {
           carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
         }
-        const carDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+        const defaultDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+        const activeDepartureTime = car.departureTime || defaultDepartureTime;
 
-        // Generation du lien Google Maps avec Waypoints (Passagers)
         const waypointsPostcodes = onboard.map(p => p.postcode).filter(Boolean);
         const gmapsUrl = generateGoogleMapsUrl(car.postcode, match.postcode, waypointsPostcodes);
 
         const onboardHtmlPromises = onboard.map(async (p) => {
-          let pTravelMins = carTravelMins;
-          if (p.pickupCoords && match.coords) {
-            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
-          }
-          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
-
           return `
             <div class="flex items-center justify-between text-[11px] text-slate-700 py-0.5">
-              <span>🙋 ${escapeHtml(p.name)} <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span> — <strong class="text-shc-magenta">Pickup: ${pPickupTime}</strong></span>
+              <span>🙋 ${escapeHtml(p.name)} <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span></span>
               <button onclick="window.unassignPassenger('${p.id}')" class="text-slate-400 hover:text-amber-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
           `;
@@ -719,11 +722,11 @@
                   ${car.carModel ? `<span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">${escapeHtml(car.carModel)}</span>` : ''}
                 </div>
                 <div class="text-[11px] text-slate-500 mt-0.5">
-                  From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)}) • <span class="text-shc-green font-bold"><i class="fa-solid fa-car-side mr-1"></i>Depart: ${carDepartureTime}</span> (${carTravelMins} min)
+                  From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)})
                 </div>
               </div>
               <div class="flex items-center gap-1.5">
-                <a href="${gmapsUrl}" target="_blank" title="Open complete route in Google Maps" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
+                <a href="${gmapsUrl}" target="_blank" title="Check live traffic & route on Google Maps" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
                   <i class="fa-solid fa-location-arrow text-[10px]"></i> <span class="hidden sm:inline">Google Maps</span>
                 </a>
                 <button onclick="window.shareCarWhatsApp('${car.id}')" title="Send car schedule on WhatsApp" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
@@ -731,6 +734,17 @@
                 </button>
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded ${seatsFree > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${seatsFree} free</span>
                 <button onclick="window.deleteCar('${car.id}')" class="text-slate-400 hover:text-red-500 text-xs pl-1"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+
+            <!-- Departure Time Editable Section -->
+            <div class="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between gap-2">
+              <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <i class="fa-solid fa-clock text-shc-green"></i> Departure Time:
+              </span>
+              <div class="flex items-center gap-1.5">
+                <input type="text" value="${escapeHtml(activeDepartureTime)}" onchange="window.updateDriverDepartureTime('${car.id}', this.value)" class="w-16 text-center font-bold text-xs bg-slate-50 border border-slate-300 rounded px-1 py-0.5 text-shc-green focus:outline-none focus:border-shc-green">
+                <span class="text-[10px] text-slate-400">(Editable)</span>
               </div>
             </div>
 
@@ -828,7 +842,6 @@
         }
       });
 
-      // Passagers non attribués en orange
       matchPassengers.filter(p => !p.assignedCarId).forEach(p => {
         if (p.pickupCoords) {
           const pm = L.marker(p.pickupCoords, {
@@ -910,7 +923,8 @@
       if (car.startCoords && match.coords) {
         carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
       }
-      const carDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+      const defaultDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+      const activeDepartureTime = car.departureTime || defaultDepartureTime;
 
       const waypointsPostcodes = onboard.map(p => p.postcode).filter(Boolean);
       const gmapsUrl = generateGoogleMapsUrl(car.postcode, match.postcode, waypointsPostcodes);
@@ -919,19 +933,14 @@
       msg += `Match: *vs ${match.opponent}* (${formatDate(match.date)})\n`;
       msg += `Driver: *${car.driverName}* (${car.carModel || 'Car'})\n`;
       msg += `📍 Departure Point: ${car.startLocation} (${car.postcode})\n`;
-      msg += `⏰ Departure Time: *${carDepartureTime}*\n\n`;
+      msg += `⏰ Confirmed Departure Time: *${activeDepartureTime}*\n\n`;
       msg += `*Passenger Pickups:*\n`;
 
       if (onboard.length === 0) {
         msg += `_No passengers assigned yet_\n`;
       } else {
         for (const p of onboard) {
-          let pTravelMins = carTravelMins;
-          if (p.pickupCoords && match.coords) {
-            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
-          }
-          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
-          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode}) -> Pickup at *${pPickupTime}*\n`;
+          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode})\n`;
         }
       }
 
@@ -961,7 +970,6 @@
       window.open(whatsappUrl, '_blank');
     };
 
-    // MANUAL MATCH ADDITION HANDLERS
     window.openAddMatchModal = function() {
       document.getElementById('addMatchForm').reset();
       document.getElementById('addMatchModal').classList.remove('hidden');
@@ -1104,6 +1112,7 @@
       e.preventDefault();
       const pc = document.getElementById('driverPostcode').value.toUpperCase().trim();
       const loc = document.getElementById('driverStartLocation').value || pc;
+      const depTime = document.getElementById('driverDepartureTime').value || '';
       const coords = await geocodeUKPostcode(pc, loc) || [51.3932 + (Math.random()-0.5)*0.02, -0.3038 + (Math.random()-0.5)*0.02];
 
       db.cars.push({
@@ -1114,6 +1123,7 @@
         carModel: document.getElementById('driverCarModel').value,
         postcode: pc,
         startLocation: loc,
+        departureTime: depTime,
         startCoords: coords,
         notes: document.getElementById('driverNotes').value
       });
