@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surbiton HC - Away Carpool</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#004D25">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SHC Carpool">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            shc: {
+              green: '#004D25',
+              greenDark: '#003318',
+              magenta: '#D10056',
+              magentaDark: '#A30043',
+              gold: '#D4AF37'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col antialiased bg-slate-100">
+
+  <!-- Navigation Bar -->
+  <header class="bg-shc-green text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center p-1 text-shc-green shadow">
+          <i class="fa-solid fa-shield-halved text-2xl text-shc-green"></i>
+        </div>
+        <div>
+          <div class="font-bold text-base tracking-tight flex items-center gap-2">
+            Surbiton HC
+            <span class="text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-shc-magenta text-white">Div 6 South</span>
+          </div>
+          <p class="text-[11px] text-emerald-100 flex items-center gap-1.5">
+            <span id="syncIndicator" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="syncText">Connecting live...</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <!-- Captain Mode Toggle Button -->
+        <button id="captainToggleBtn" onclick="toggleCaptainMode()" class="min-h-[40px] px-3 py-2 rounded-lg border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition flex items-center gap-1.5">
+          <i id="captainIcon" class="fa-solid fa-user-lock"></i> <span id="captainLabel">Captain Mode</span>
+        </button>
+
+        <!-- Change PIN Button (Captain only) -->
+        <button id="btnChangePin" onclick="window.changeCaptainPin()" title="Change the Captain PIN for everyone" class="hidden min-h-[40px] px-3 py-2 rounded-lg border border-amber-400/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-100 text-xs font-medium transition items-center gap-2">
+          <i class="fa-solid fa-key"></i>
+        </button>
+
+        <!-- Sync Button (Captain only) -->
+        <button id="btnSyncFixtures" onclick="openSyncModal()" class="hidden min-h-[40px] px-3 py-2 rounded-lg border border-emerald-600 bg-shc-greenDark hover:bg-emerald-900 text-white text-xs font-medium transition items-center gap-2">
+          <i class="fa-solid fa-rotate text-emerald-300"></i> <span class="hidden sm:inline">League Site</span>
+        </button>
+        
+        <button onclick="copyShareLink()" class="min-h-[40px] px-3 py-2 rounded-lg bg-shc-magenta hover:bg-shc-magentaDark text-white text-xs font-semibold transition flex items-center gap-2 shadow-sm">
+          <i class="fa-brands fa-whatsapp text-sm"></i> <span class="hidden sm:inline">Share Match</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- Match Tabs & Add Match Button -->
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Away Fixture</div>
+        <!-- Add Match Button (Captain only) -->
+        <button id="btnAddMatch" onclick="openAddMatchModal()" class="hidden text-xs bg-shc-green hover:bg-shc-greenDark text-white font-bold px-3 py-1 rounded-lg transition items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-plus text-[10px]"></i> Add Match
+        </button>
+      </div>
+      <div class="relative">
+        <div id="matchTabsContainer" class="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar"></div>
+        <div class="pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-slate-100 to-transparent sm:hidden"></div>
+      </div>
+    </div>
+
+    <!-- Match Summary Banner -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm relative">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-shc-magenta/10 text-shc-magenta border border-shc-magenta/20">Away Game</span>
+            <span id="matchDateBadge" class="text-xs text-slate-500 font-semibold">--/--/----</span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <h2 id="matchOpponentTitle" class="text-2xl sm:text-3xl font-bold text-shc-green tracking-tight">vs ---</h2>
+            <!-- Edit Match Button (Captain only) -->
+            <button id="btnEditMatch" onclick="openEditMatchModal()" class="hidden text-xs text-slate-600 hover:text-shc-green bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded-lg transition items-center gap-1.5">
+              <i class="fa-solid fa-pen-to-square text-[11px]"></i> Edit Venue
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-y-2 gap-x-6 text-xs text-slate-600 font-medium">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-location-dot text-shc-magenta"></i>
+              <span id="matchLocationText" class="text-slate-800 font-semibold">---</span>
+              <span id="matchPostcodeBadge" class="bg-slate-100 text-slate-600 font-mono text-[11px] px-2 py-0.5 rounded border border-slate-200">UK</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i class="fa-regular fa-clock text-slate-400"></i>
+              <span>Meet: <strong id="matchConvocationTime" class="text-slate-900">--:--</strong></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-flag-checkered text-slate-400"></i>
+              <span>Pushback: <strong id="matchKickoffTime" class="text-slate-900">--:--</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Carpool Summary & Auto Match Button -->
+        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 min-w-[260px] space-y-3">
+          <div class="flex items-center justify-between">
+            <span id="statusBadge" class="text-xs font-bold px-2.5 py-1 rounded-md">Checking...</span>
+            <button onclick="window.autoAssignPassengers()" title="Optimize driver assignment based on minimal route detour" class="text-xs bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-assign
+            </button>
+          </div>
+          <div id="statusSubtitle" class="text-xs text-slate-500">---</div>
+
+          <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200 text-center">
+            <div>
+              <div id="statTotalDrivers" class="font-bold text-base text-shc-green">0</div>
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Cars</div>
+            </div>
+            <div>
+              <div id="statTotalSeats" class="font-bold text-base text-slate-700">0</div>
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Free Seats</div>
+            </div>
+            <div>
+              <div id="statUnassignedPassengers" class="font-bold text-base text-shc-magenta">0</div>
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Waiting</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Action Trigger Buttons -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <button onclick="openOfferModal()" class="p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 shadow-sm transition text-left flex items-center justify-between group">
+        <div class="space-y-1">
+          <div class="text-xs font-bold text-shc-green uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-car"></i> Driver</div>
+          <div class="text-sm font-bold text-slate-900">Offer a Ride</div>
+          <div class="text-xs text-slate-500">Register vehicle & UK departure postcode</div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-shc-green/10 group-hover:bg-shc-green text-shc-green group-hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-plus"></i>
+        </div>
+      </button>
+
+      <button onclick="openRequestModal()" class="p-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 shadow-sm transition text-left flex items-center justify-between group">
+        <div class="space-y-1">
+          <div class="text-xs font-bold text-shc-magenta uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-user-plus"></i> Passenger</div>
+          <div class="text-sm font-bold text-slate-900">Need a Lift</div>
+          <div class="text-xs text-slate-500">Request pickup & choose preferred driver</div>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-shc-magenta/10 group-hover:bg-shc-magenta text-shc-magenta group-hover:text-white flex items-center justify-center text-xs transition">
+          <i class="fa-solid fa-hand"></i>
+        </div>
+      </button>
+    </div>
+
+    <!-- Content Split: Lists vs Map -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-7 space-y-6 order-2 lg:order-1">
+        <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Waiting for a Lift
+            </h3>
+            <span id="unassignedCountBadge" class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">0</span>
+          </div>
+          <div id="unassignedPassengersList" class="space-y-2"></div>
+        </div>
+
+        <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-shc-green"></span> Registered Vehicles
+            </h3>
+            <span id="carsCountLabel" class="text-xs text-slate-500 font-medium">0 cars</span>
+          </div>
+          <div id="carsList" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 order-1 lg:order-2">
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3 h-[300px] lg:h-[520px] flex flex-col">
+          <div class="flex items-center justify-between text-xs text-slate-500 font-semibold">
+            <span>UK Interactive Map & Routes</span>
+            <span id="mapStatus" class="text-[11px] text-shc-green font-bold">Live Routes Active</span>
+          </div>
+          <div id="map" class="w-full flex-1 rounded-lg border border-slate-200 z-10"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: Add Match -->
+  <div id="addMatchModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl relative">
+      <button onclick="closeModal('addMatchModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-lg font-bold text-shc-green mb-1">Add Away Fixture</h3>
+      <p class="text-xs text-slate-500 mb-4">Create a new match manually for carpooling.</p>
+
+      <form id="addMatchForm" onsubmit="window.handleAddMatchSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Opponent *</label>
+          <input type="text" id="addMatchOpponent" required placeholder="e.g. Richmond 4s" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
+            <input type="date" id="addMatchDate" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">UK Postcode *</label>
+            <input type="text" id="addMatchPostcode" required placeholder="e.g. TW9 2SF" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 uppercase focus:outline-none focus:border-shc-green font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Venue Name / Pitch Address *</label>
+          <input type="text" id="addMatchVenueName" required placeholder="e.g. Richmond Athletic Ground" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Meet *</label>
+            <input type="time" id="addMatchConvocation" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Pushback *</label>
+            <input type="time" id="addMatchKickoff" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeModal('addMatchModal')" class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+          <button type="submit" class="bg-shc-green text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-shc-greenDark transition">Create Match</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Edit Match -->
+  <div id="editMatchModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl relative">
+      <button onclick="closeModal('editMatchModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-lg font-bold text-shc-green mb-1">Manage Fixture Venue</h3>
+      <p class="text-xs text-slate-500 mb-4">Update fixture details in real-time for all players.</p>
+
+      <form id="editMatchForm" onsubmit="window.handleEditMatchSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Opponent *</label>
+          <input type="text" id="editMatchOpponent" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Date *</label>
+            <input type="date" id="editMatchDate" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">UK Postcode *</label>
+            <input type="text" id="editMatchPostcode" required placeholder="e.g. SW20 0JY" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 uppercase focus:outline-none focus:border-shc-green font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Venue Name / Pitch Address *</label>
+          <input type="text" id="editMatchVenueName" required placeholder="e.g. Raynes Park High Pitch" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Meet *</label>
+            <input type="time" id="editMatchConvocation" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Pushback *</label>
+            <input type="time" id="editMatchKickoff" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-between">
+          <button type="button" onclick="window.deleteCurrentMatch()" class="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-trash"></i> Delete
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeModal('editMatchModal')" class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+            <button type="submit" class="bg-shc-green text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-shc-greenDark transition">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Offer Ride -->
+  <div id="offerModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl relative">
+      <button onclick="closeModal('offerModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 id="offerModalTitle" class="text-lg font-bold text-shc-green mb-1">Offer a Ride</h3>
+      <p class="text-xs text-slate-500 mb-4">Register vehicle and UK departure location.</p>
+
+      <form id="offerForm" onsubmit="window.handleOfferSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Driver Name *</label>
+          <input type="text" id="driverName" required placeholder="e.g. Alex M." class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Available Seats *</label>
+            <input type="number" id="driverSeats" min="1" max="8" value="3" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Car Model</label>
+            <input type="text" id="driverCarModel" placeholder="e.g. Audi A3" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-1">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">UK Postcode *</label>
+            <input type="text" id="driverPostcode" required placeholder="KT6 4BN" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono uppercase focus:outline-none focus:border-shc-green">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Departure Area / Landmark</label>
+            <input type="text" id="driverStartLocation" placeholder="e.g. Surbiton Station" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
+          <input type="text" id="driverNotes" placeholder="e.g. Leaving near Sugden Rd" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
+        </div>
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('offerModal')" class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+          <button id="offerModalSubmitBtn" type="submit" class="bg-shc-green text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-shc-greenDark transition">Add Vehicle</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Request Ride -->
+  <div id="requestModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl relative">
+      <button onclick="closeModal('requestModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 id="requestModalTitle" class="text-lg font-bold text-shc-magenta mb-1">Request a Lift</h3>
+      <p class="text-xs text-slate-500 mb-4">Request pickup and optionally choose a driver.</p>
+
+      <form id="requestForm" onsubmit="window.handleRequestSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Player Name *</label>
+          <input type="text" id="passengerName" required placeholder="e.g. Oliver B." class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-magenta">
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="col-span-1">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">UK Postcode *</label>
+            <input type="text" id="passengerPostcode" required placeholder="KT6 4JR" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono uppercase focus:outline-none focus:border-shc-magenta">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Pickup Point Description</label>
+            <input type="text" id="passengerPickupLocation" placeholder="e.g. Surbiton High Street" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-magenta">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Select Preferred Driver / Vehicle (Optional)</label>
+          <select id="passengerCarChoice" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-magenta font-medium">
+            <option value="">-- No preference (Auto / Any car) --</option>
+          </select>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('requestModal')" class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+          <button id="requestModalSubmitBtn" type="submit" class="bg-shc-magenta text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-shc-magentaDark transition">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Assign Passenger -->
+  <div id="assignModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-sm rounded-xl p-5 shadow-2xl relative">
+      <button onclick="closeModal('assignModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-sm font-bold text-slate-900 mb-1">Assign Passenger</h3>
+      <p id="assignModalSub" class="text-xs text-slate-500 mb-4">Choose a driver for this player.</p>
+
+      <div id="assignDriversList" class="space-y-2 max-h-60 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: Sync Fixtures -->
+  <div id="syncModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl relative">
+      <button onclick="closeModal('syncModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-lg font-bold text-shc-green mb-1">League Fixtures</h3>
+      <p class="text-xs text-slate-500 mb-4">There's no automatic import yet — England Hockey doesn't offer a public feed we can read from the browser. Open the league page, copy the fixture details, then use "Add Match" to enter them.</p>
+
+      <div class="space-y-3">
+        <a href="https://www.englandhockey.co.uk/competitions/" target="_blank" rel="noopener noreferrer" id="syncBtn" class="w-full bg-shc-green hover:bg-shc-greenDark text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Open England Hockey Fixtures
+        </a>
+        <button type="button" onclick="closeModal('syncModal'); window.openAddMatchModal();" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-lg text-xs transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plus"></i> Add Match Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-2xl flex items-center space-x-2">
+    <span id="toastMessage"></span>
+  </div>
+
+  <!-- FIREBASE APPLICATION SCRIPT (ES Module) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    // --- GOOGLE MAPS API KEY CONFIGURATION ---
+    // Collez votre clé API Google Maps ici pour activer Distance Matrix avec trafic réel.
+    // Laissez vide "" pour basculer automatiquement sur l'algorithme OSRM majoré.
+    const GOOGLE_MAPS_API_KEY = "";
+
+    // Firebase Config
+    const firebaseConfig = {
+      databaseURL: "https://shc-mongooses-carpool-default-rtdb.europe-west1.firebasedatabase.app"
+    };
+
+    // --- SECURITY NOTE ---
+    // This app has no server: anyone with the Realtime Database URL can currently read AND write
+    // all data, and the "Captain PIN" below only prevents accidental clicks, not a determined person
+    // (it's readable in this file's source). For a team-only link this is a low risk, but if you want
+    // real protection, set Firebase Realtime Database rules in the Firebase console, e.g.:
+    //   { "rules": { "carpool_data": { ".read": true, ".write": "auth != null" } } }
+    // and add Firebase Anonymous Auth so only people who opened the shared link (and got a session)
+    // can write. That's a bigger change than this file alone can provide.
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+    const dbRef = ref(database, 'carpool_data');
+
+    // Default Seed Data
+    const DEFAULT_DATA = {
+      config: { captainPin: '1874' },
+      matches: [
+        { id: 'eh-1', opponent: 'Wimbledon 7s', venueName: 'Raynes Park High Pitch', postcode: 'SW20 0JY', date: '2026-10-03', convocationTime: '11:45', kickoffTime: '13:00', coords: [51.4112, -0.2391] },
+        { id: 'eh-2', opponent: 'Wayfarers 8s', venueName: 'Dulwich College Sports Centre', postcode: 'SE21 7LD', date: '2026-10-17', convocationTime: '13:30', kickoffTime: '14:45', coords: [51.4398, -0.0825] },
+        { id: 'eh-3', opponent: 'Spencer 6s', venueName: 'Fieldview Pitch Wandsworth', postcode: 'SW18 3HF', date: '2026-11-07', convocationTime: '10:15', kickoffTime: '11:30', coords: [51.4439, -0.1834] }
+      ],
+      cars: [
+        { id: 'car-1', matchId: 'eh-1', driverName: 'Edward K.', seatsTotal: 4, carModel: 'BMW X3', postcode: 'KT6 4BN', startLocation: 'Surbiton Station', startCoords: [51.3932, -0.3038], notes: 'Leaving near Sugden Rd', customDepartureTime: null, ownerToken: null }
+      ],
+      passengers: [
+        { id: 'pass-1', matchId: 'eh-1', name: 'Harry B.', postcode: 'KT6 4BN', pickupLocation: 'Surbiton Station', pickupCoords: [51.3930, -0.3035], assignedCarId: 'car-1', customPickupTime: null, ownerToken: null },
+        { id: 'pass-2', matchId: 'eh-1', name: 'Charlie M.', postcode: 'KT6 5AL', pickupLocation: 'Long Ditton', pickupCoords: [51.3881, -0.3152], assignedCarId: null, customPickupTime: null, ownerToken: null }
+      ]
+    };
+
+    // --- DEVICE / OWNERSHIP TOKEN ---
+    // Since there's no login system, each browser gets a private random token stored in
+    // localStorage. Every car/passenger entry created from this device is tagged with it,
+    // so only the person who created an entry (or the Captain) can edit or delete it.
+    function getDeviceToken() {
+      let token = localStorage.getItem('shc_device_token');
+      if (!token) {
+        token = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('shc_device_token', token);
+      }
+      return token;
+    }
+    const DEVICE_TOKEN = getDeviceToken();
+    function canManage(record) {
+      return isCaptain || (record && record.ownerToken && record.ownerToken === DEVICE_TOKEN);
+    }
+
+    const ROUTE_COLORS = ['#004D25', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899'];
+
+    let db = { config: { captainPin: '1874' }, matches: [], cars: [], passengers: [] };
+    let currentMatchId = null;
+    let activeAssignPassengerId = null;
+    let editingCarId = null;
+    let editingPassengerId = null;
+    let isCaptain = false;
+    let map = null, mapMarkers = [], mapPolylines = [];
+
+    // Realtime Listener
+    onValue(dbRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) {
+        set(dbRef, DEFAULT_DATA);
+        return;
+      }
+
+      db = {
+        config: data.config || { captainPin: '1874' },
+        matches: data.matches || [],
+        cars: data.cars || [],
+        passengers: data.passengers || []
+      };
+
+      if (!currentMatchId && db.matches.length > 0) {
+        currentMatchId = db.matches[0].id;
+      }
+
+      const ind = document.getElementById('syncIndicator');
+      const txt = document.getElementById('syncText');
+      if (ind && txt) {
+        ind.className = "w-2 h-2 rounded-full bg-emerald-400";
+        txt.innerText = "Live Sync Active";
+      }
+
+      renderTabs();
+      if (currentMatchId) loadMatchDetails(currentMatchId);
+    }, (error) => {
+      console.error("Firebase connection error:", error);
+      const ind = document.getElementById('syncIndicator');
+      const txt = document.getElementById('syncText');
+      if (ind && txt) {
+        ind.className = "w-2 h-2 rounded-full bg-red-500 animate-pulse";
+        txt.innerText = "Connection Failed";
+      }
+    });
+
+    function saveState() {
+      set(dbRef, db);
+    }
+
+    // CAPTAIN MODE LOGIC
+    window.toggleCaptainMode = function() {
+      if (isCaptain) {
+        isCaptain = false;
+        updateCaptainUI();
+        showToast('Captain mode deactivated');
+      } else {
+        const currentPin = (db.config && db.config.captainPin) || '1874';
+        const pin = prompt('Enter Captain PIN code:');
+        if (pin === currentPin) {
+          isCaptain = true;
+          updateCaptainUI();
+          showToast('Captain mode activated!');
+        } else if (pin !== null) {
+          alert('Incorrect PIN code.');
+        }
+      }
+    };
+
+    window.changeCaptainPin = function() {
+      if (!isCaptain) return;
+      const currentPin = (db.config && db.config.captainPin) || '1874';
+      const newPin = prompt('Set a new Captain PIN (shared with whoever should have Captain access):', currentPin);
+      if (newPin && newPin.trim()) {
+        db.config = db.config || {};
+        db.config.captainPin = newPin.trim();
+        saveState();
+        showToast('Captain PIN updated');
+      }
+    };
+
+    function updateCaptainUI() {
+      const btnAdd = document.getElementById('btnAddMatch');
+      const btnEdit = document.getElementById('btnEditMatch');
+      const btnSync = document.getElementById('btnSyncFixtures');
+      const btnPin = document.getElementById('btnChangePin');
+      const captainBtn = document.getElementById('captainToggleBtn');
+      const captainIcon = document.getElementById('captainIcon');
+      const captainLabel = document.getElementById('captainLabel');
+
+      if (isCaptain) {
+        btnAdd?.classList.remove('hidden');
+        btnAdd?.classList.add('flex');
+        btnEdit?.classList.remove('hidden');
+        btnEdit?.classList.add('flex');
+        btnSync?.classList.remove('hidden');
+        btnSync?.classList.add('flex');
+        btnPin?.classList.remove('hidden');
+        btnPin?.classList.add('flex');
+
+        captainBtn.className = "min-h-[40px] px-3 py-2 rounded-lg border border-amber-400 bg-amber-500 text-slate-900 font-bold text-xs transition flex items-center gap-1.5 shadow-sm";
+        captainIcon.className = "fa-solid fa-user-shield text-slate-900";
+        captainLabel.innerText = "Captain Active";
+      } else {
+        btnAdd?.classList.add('hidden');
+        btnAdd?.classList.remove('flex');
+        btnEdit?.classList.add('hidden');
+        btnEdit?.classList.remove('flex');
+        btnSync?.classList.add('hidden');
+        btnSync?.classList.remove('flex');
+        btnPin?.classList.add('hidden');
+        btnPin?.classList.remove('flex');
+
+        captainBtn.className = "min-h-[40px] px-3 py-2 rounded-lg border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition flex items-center gap-1.5";
+        captainIcon.className = "fa-solid fa-user-lock";
+        captainLabel.innerText = "Captain Mode";
+      }
+      renderMatchDetailsIfLoaded();
+    }
+
+    // Re-render the current match's lists so Edit/Delete buttons show/hide correctly
+    // as soon as Captain Mode is toggled, without waiting for the next Firebase update.
+    function renderMatchDetailsIfLoaded() {
+      if (currentMatchId) loadMatchDetails(currentMatchId);
+    }
+
+    // GOOGLE MAPS NAVIGATION & WAYPOINTS GENERATOR
+    function buildGoogleMapsUrl(car, match, onboardPassengers) {
+      if (!car || !match) return '#';
+      const origin = encodeURIComponent(`${car.postcode}, UK`);
+      const destination = encodeURIComponent(`${match.postcode}, UK`);
+
+      const waypoints = onboardPassengers
+        .map(p => p.postcode ? encodeURIComponent(`${p.postcode}, UK`) : null)
+        .filter(Boolean);
+
+      let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+      if (waypoints.length > 0) {
+        url += `&waypoints=${waypoints.join('|')}`;
+      }
+      url += `&travelmode=driving`;
+      return url;
+    }
+
+    // CUSTOM TIME EDITING HANDLERS
+    window.updateDriverDepartureTime = function(carId, newTime) {
+      const car = db.cars.find(c => c.id === carId);
+      if (car) {
+        car.customDepartureTime = newTime.trim() || null;
+        saveState();
+        showToast('Driver departure time updated');
+      }
+    };
+
+    window.updatePassengerPickupTime = function(passengerId, newTime) {
+      const passenger = db.passengers.find(p => p.id === passengerId);
+      if (passenger) {
+        passenger.customPickupTime = newTime.trim() || null;
+        saveState();
+        showToast('Passenger pickup time updated');
+      }
+    };
+
+    function initMap() {
+      if (!map) {
+        map = L.map('map').setView([51.3932, -0.3038], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+      }
+    }
+
+    function geocodeCacheKey(postcode) { return 'shc_geocode_' + postcode.trim().toUpperCase(); }
+
+    async function geocodeUKPostcode(postcode, address = '') {
+      if (!postcode) return null;
+      const cleanPostcode = postcode.trim().toUpperCase();
+
+      // Check local cache first: avoids re-hitting Nominatim for a postcode we've already
+      // resolved on this device (and Nominatim's usage policy asks callers to cache results).
+      const cacheKey = geocodeCacheKey(cleanPostcode);
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try { return JSON.parse(cached); } catch { /* fall through and re-fetch */ }
+      }
+
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&postalcode=${encodeURIComponent(cleanPostcode)}&countrycodes=gb&limit=1`;
+        const response = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+          const coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+          localStorage.setItem(cacheKey, JSON.stringify(coords));
+          return coords;
+        } else if (address) {
+          const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanPostcode + ' ' + address + ', UK')}&countrycodes=gb&limit=1`;
+          const fbRes = await fetch(fallbackUrl);
+          const fbData = await fbRes.json();
+          if (fbData && fbData.length > 0) {
+            const coords = [parseFloat(fbData[0].lat), parseFloat(fbData[0].lon)];
+            localStorage.setItem(cacheKey, JSON.stringify(coords));
+            return coords;
+          }
+        }
+      } catch (err) {
+        console.error("UK Geocoding error:", err);
+      }
+      return null;
+    }
+
+    function getDistanceKm(coord1, coord2) {
+      if (!coord1 || !coord2) return 999;
+      const R = 6371;
+      const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
+      const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // ACCURATE TRAVEL TIME CALCULATOR (Google Maps API or Enhanced OSRM)
+    async function getTravelMinutes(startCoords, endCoords, passengerCount = 0) {
+      if (!startCoords || !endCoords) return 30;
+
+      // 1. Google Maps Distance Matrix API (Si la clé est renseignée)
+      if (GOOGLE_MAPS_API_KEY) {
+        try {
+          const originStr = `${startCoords[0]},${startCoords[1]}`;
+          const destStr = `${endCoords[0]},${endCoords[1]}`;
+          const gmapsUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originStr}&destinations=${destStr}&departure_time=now&key=${GOOGLE_MAPS_API_KEY}`;
+          const res = await fetch(gmapsUrl);
+          const data = await res.json();
+
+          if (data.status === 'OK' && data.rows[0].elements[0].status === 'OK') {
+            const elem = data.rows[0].elements[0];
+            const durationSec = elem.duration_in_traffic ? elem.duration_in_traffic.value : elem.duration.value;
+            const minutes = Math.round(durationSec / 60);
+            return minutes + (passengerCount * 5); // Ajout de 5 min d'embarquement par passager
+          }
+        } catch (err) {
+          console.warn("Google Maps API error, falling back to OSRM:", err);
+        }
+      }
+
+      // 2. Fallback OSRM majoré avec marges de trafic et arrêts (Option B)
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${startCoords[1]},${startCoords[0]};${endCoords[1]},${endCoords[0]}?overview=false`;
+        const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+        if (!response.ok) throw new Error("OSRM Network Error");
+
+        const data = await response.json();
+        if (data.routes && data.routes.length > 0) {
+          const baseDurationMinutes = Math.round(data.routes[0].duration / 60);
+          // Majoration Trafic (+20%) + 5 minutes d'arrêt par passager récupéré
+          return Math.round(baseDurationMinutes * 1.20) + (passengerCount * 5);
+        }
+      } catch (e) {
+        console.warn("OSRM API fallback applied:", e);
+        const distKm = getDistanceKm(startCoords, endCoords);
+        // Vitesse moyenne estimée à 30 km/h en zone métropolitaine UK + 5 min/passager
+        return Math.max(20, Math.round((distKm / 30) * 60) + (passengerCount * 5));
+      }
+      return 35;
+    }
+
+    function calculateDepartureTime(meetTimeStr, travelMinutes) {
+      if (!meetTimeStr || isNaN(travelMinutes)) return '--:--';
+      const [hours, minutes] = meetTimeStr.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) return '--:--';
+
+      let totalMinutes = (hours * 60 + minutes) - travelMinutes;
+      if (totalMinutes < 0) totalMinutes += 24 * 60;
+
+      const depHours = Math.floor(totalMinutes / 60) % 24;
+      const depMins = totalMinutes % 60;
+
+      return `${String(depHours).padStart(2, '0')}:${String(depMins).padStart(2, '0')}`;
+    }
+
+    function renderTabs() {
+      const container = document.getElementById('matchTabsContainer');
+      if (db.matches.length === 0) {
+        container.innerHTML = `<span class="text-xs text-slate-400 italic">No fixtures available. Add or sync fixtures above.</span>`;
+        return;
+      }
+      container.innerHTML = db.matches.map(m => {
+        const active = m.id === currentMatchId;
+        return `
+          <button onclick="window.switchMatch('${m.id}')" class="px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition border ${active ? 'bg-shc-green text-white border-shc-green shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}">
+            vs ${escapeHtml(m.opponent)} <span class="font-normal opacity-80">(${formatDate(m.date)})</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    window.switchMatch = function(id) {
+      currentMatchId = id;
+      renderTabs();
+      loadMatchDetails(currentMatchId);
+    };
+
+    async function loadMatchDetails(matchId) {
+      const match = db.matches.find(m => m.id === matchId);
+      if (!match) return;
+
+      document.getElementById('matchOpponentTitle').innerText = `vs ${match.opponent}`;
+      document.getElementById('matchLocationText').innerText = `${match.venueName}`;
+      document.getElementById('matchPostcodeBadge').innerText = match.postcode || 'UK';
+      document.getElementById('matchDateBadge').innerText = formatDate(match.date);
+      document.getElementById('matchConvocationTime').innerText = match.convocationTime;
+      document.getElementById('matchKickoffTime').innerText = match.kickoffTime;
+
+      updateCaptainUI();
+      await renderCarsAndPassengers(match);
+      await updateMapMarkersAndRoutes();
+    }
+
+    async function renderCarsAndPassengers(match) {
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+      const unassigned = matchPassengers.filter(p => !p.assignedCarId);
+      const totalSeats = matchCars.reduce((acc, c) => acc + Number(c.seatsTotal), 0);
+
+      document.getElementById('statTotalDrivers').innerText = matchCars.length;
+      document.getElementById('statTotalSeats').innerText = totalSeats - (matchPassengers.length - unassigned.length);
+      document.getElementById('statUnassignedPassengers').innerText = unassigned.length;
+      document.getElementById('unassignedCountBadge').innerText = unassigned.length;
+      document.getElementById('carsCountLabel').innerText = `${matchCars.length} car(s)`;
+
+      const badge = document.getElementById('statusBadge');
+      const sub = document.getElementById('statusSubtitle');
+      if (unassigned.length === 0) {
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800";
+        badge.innerText = "All Set";
+        sub.innerText = "All passengers assigned to drivers.";
+      } else {
+        badge.className = "text-xs font-bold px-2.5 py-1 rounded-md bg-shc-magenta/10 text-shc-magenta";
+        badge.innerText = `${unassigned.length} Pending`;
+        sub.innerText = "Players still looking for a car.";
+      }
+
+      const unassignedHtmlPromises = unassigned.map(async (p) => {
+        let pickupTime = '--:--';
+        let travelMins = 30;
+        if (p.pickupCoords && match.coords) {
+          travelMins = await getTravelMinutes(p.pickupCoords, match.coords, 0);
+          pickupTime = calculateDepartureTime(match.convocationTime, travelMins + 5);
+        }
+        return `
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+            <div>
+              <div class="text-xs font-bold text-slate-900">${escapeHtml(p.name)}</div>
+              <div class="text-[11px] text-slate-500">
+                <i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${escapeHtml(p.pickupLocation)} <span class="font-mono text-slate-700">(${escapeHtml(p.postcode)})</span>
+              </div>
+              <div class="text-[10px] text-shc-magenta font-semibold mt-1">
+                <i class="fa-solid fa-clock mr-1"></i>Est. Pickup: <strong>${pickupTime}</strong> (${travelMins} min drive)
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="window.openAssignModal('${p.id}')" class="min-h-[36px] px-2.5 py-1.5 rounded bg-shc-green hover:bg-shc-greenDark text-white text-[11px] font-bold transition">Assign</button>
+              ${canManage(p) ? `<button onclick="window.openRequestModal('${p.id}')" class="min-h-[36px] min-w-[36px] text-slate-400 hover:text-shc-green text-sm px-2"><i class="fa-solid fa-pen"></i></button>` : ''}
+              ${canManage(p) ? `<button onclick="window.deletePassenger('${p.id}')" class="min-h-[36px] min-w-[36px] text-slate-400 hover:text-red-500 text-sm px-2"><i class="fa-solid fa-trash"></i></button>` : ''}
+            </div>
+          </div>
+        `;
+      });
+
+      const unassignedEl = document.getElementById('unassignedPassengersList');
+      if (unassigned.length === 0) {
+        unassignedEl.innerHTML = `<div class="text-xs text-slate-400 py-3 text-center border border-dashed border-slate-200 rounded-lg">No players waiting for a ride.</div>`;
+      } else {
+        const unassignedCards = await Promise.all(unassignedHtmlPromises);
+        unassignedEl.innerHTML = unassignedCards.join('');
+      }
+
+      const carsHtmlPromises = matchCars.map(async (car, idx) => {
+        const onboard = matchPassengers.filter(p => p.assignedCarId === car.id);
+        const seatsFree = car.seatsTotal - onboard.length;
+
+        let carTravelMins = 30;
+        if (car.startCoords && match.coords) {
+          carTravelMins = await getTravelMinutes(car.startCoords, match.coords, onboard.length);
+        }
+        const calcDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+        const displayDepartureTime = car.customDepartureTime || calcDepartureTime;
+
+        const onboardHtmlPromises = onboard.map(async (p) => {
+          let pTravelMins = carTravelMins;
+          if (p.pickupCoords && match.coords) {
+            pTravelMins = await getTravelMinutes(p.pickupCoords, match.coords, 0);
+          }
+          const calcPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          const displayPickupTime = p.customPickupTime || calcPickupTime;
+
+          return `
+            <div class="flex items-center justify-between text-[11px] text-slate-700 py-1 border-b border-slate-100 last:border-0">
+              <span class="flex items-center gap-1.5 flex-wrap">
+                <span>🙋 <strong>${escapeHtml(p.name)}</strong> <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span></span>
+                <span class="text-shc-magenta font-semibold flex items-center gap-1">
+                  — Pickup: 
+                  <input type="time" value="${displayPickupTime}" onchange="window.updatePassengerPickupTime('${p.id}', this.value)" title="Adjust passenger pickup time" class="min-h-[32px] w-24 bg-white border border-slate-300 rounded text-center px-1 text-slate-900 font-bold focus:outline-none focus:border-shc-magenta">
+                </span>
+              </span>
+              <button onclick="window.unassignPassenger('${p.id}')" class="min-h-[36px] min-w-[36px] text-slate-400 hover:text-amber-600 pl-2"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+          `;
+        });
+
+        const onboardCards = await Promise.all(onboardHtmlPromises);
+        const routeColor = ROUTE_COLORS[idx % ROUTE_COLORS.length];
+        const googleMapsNavUrl = buildGoogleMapsUrl(car, match, onboard);
+
+        return `
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3 relative overflow-hidden">
+            <div class="absolute top-0 left-0 bottom-0 w-1.5" style="background-color: ${routeColor}"></div>
+            <div class="flex items-start justify-between pl-1">
+              <div>
+                <div class="text-xs font-bold text-slate-900 flex items-center gap-2">
+                  ${escapeHtml(car.driverName)}
+                  ${car.carModel ? `<span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">${escapeHtml(car.carModel)}</span>` : ''}
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)})</span>
+                  <span>•</span>
+                  <span class="text-shc-green font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-car-side"></i>Depart: 
+                    <input type="time" value="${displayDepartureTime}" onchange="window.updateDriverDepartureTime('${car.id}', this.value)" title="Click to adjust driver departure time" class="min-h-[32px] w-24 bg-white border border-slate-300 rounded text-center px-1 text-slate-900 font-bold focus:outline-none focus:border-shc-green">
+                  </span>
+                  <span class="text-slate-400">(${carTravelMins} min total)</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <a href="${googleMapsNavUrl}" target="_blank" rel="noopener noreferrer" title="Open Google Maps Route with all waypoints" class="min-h-[36px] bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2 py-1.5 rounded transition flex items-center gap-1">
+                  <i class="fa-solid fa-map-location-dot text-xs"></i> <span class="hidden sm:inline">Open GPS</span>
+                </a>
+                <button onclick="window.shareCarWhatsApp('${car.id}')" title="Send car schedule & GPS link on WhatsApp" class="min-h-[36px] bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2 py-1.5 rounded transition flex items-center gap-1">
+                  <i class="fa-brands fa-whatsapp text-xs"></i> <span class="hidden sm:inline">WhatsApp</span>
+                </button>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${seatsFree > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${seatsFree} free</span>
+                ${canManage(car) ? `<button onclick="window.openOfferModal('${car.id}')" class="min-h-[36px] min-w-[36px] text-slate-400 hover:text-shc-green text-sm px-2"><i class="fa-solid fa-pen"></i></button>` : ''}
+                ${canManage(car) ? `<button onclick="window.deleteCar('${car.id}')" class="min-h-[36px] min-w-[36px] text-slate-400 hover:text-red-500 text-sm px-2"><i class="fa-solid fa-trash"></i></button>` : ''}
+              </div>
+            </div>
+
+            ${car.notes ? `<div class="text-[11px] text-slate-600 italic bg-white p-2 rounded border border-slate-200 pl-2">${escapeHtml(car.notes)}</div>` : ''}
+
+            <div class="space-y-1 pt-1 border-t border-slate-200 pl-1">
+              ${onboardCards.join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      const carsEl = document.getElementById('carsList');
+      if (matchCars.length === 0) {
+        carsEl.innerHTML = `<div class="text-xs text-slate-400 py-6 text-center border border-dashed border-slate-200 rounded-lg">No vehicles registered yet.</div>`;
+      } else {
+        const carCards = await Promise.all(carsHtmlPromises);
+        carsEl.innerHTML = carCards.join('');
+      }
+    }
+
+    async function updateMapMarkersAndRoutes() {
+      if (!map) initMap();
+      mapMarkers.forEach(m => map.removeLayer(m));
+      mapPolylines.forEach(p => map.removeLayer(p));
+      mapMarkers = [];
+      mapPolylines = [];
+
+      const match = db.matches.find(m => m.id === currentMatchId);
+      if (!match) return;
+
+      if (!match.coords && match.postcode) {
+        match.coords = await geocodeUKPostcode(match.postcode, match.venueName);
+        saveState();
+      }
+
+      const bounds = [];
+      if (match.coords) {
+        const destMarker = L.marker(match.coords, {
+          icon: L.divIcon({
+            className: 'custom-icon',
+            html: `<div style="background:#D10056; width:18px; height:18px; border-radius:50%; border:2px solid white; box-shadow:0 0 6px rgba(0,0,0,0.4); display:flex; align-items:center; justify-center; color:white; font-size:10px;"><i class="fa-solid fa-flag-checkered"></i></div>`
+          })
+        }).addTo(map);
+        destMarker.bindPopup(`<b>Destination: ${escapeHtml(match.opponent)}</b><br>${escapeHtml(match.venueName)} (${escapeHtml(match.postcode)})`);
+        mapMarkers.push(destMarker);
+        bounds.push(match.coords);
+      }
+
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+
+      matchCars.forEach((c, idx) => {
+        const routeColor = ROUTE_COLORS[idx % ROUTE_COLORS.length];
+        const waypoints = [];
+
+        if (c.startCoords) {
+          const m = L.marker(c.startCoords, {
+            icon: L.divIcon({
+              className: 'custom-icon',
+              html: `<div style="background:${routeColor}; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow:0 0 6px rgba(0,0,0,0.4);"></div>`
+            })
+          }).addTo(map);
+          m.bindPopup(`<b>Car: ${escapeHtml(c.driverName)}</b><br>Start: ${escapeHtml(c.startLocation)} (${escapeHtml(c.postcode)})`);
+          mapMarkers.push(m);
+          bounds.push(c.startCoords);
+          waypoints.push(c.startCoords);
+        }
+
+        const onboard = matchPassengers.filter(p => p.assignedCarId === c.id);
+        onboard.forEach(p => {
+          if (p.pickupCoords) {
+            const pm = L.marker(p.pickupCoords, {
+              icon: L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background:${routeColor}; width:12px; height:12px; border-radius:50%; border:2px solid white; opacity:0.85;"></div>`
+              })
+            }).addTo(map);
+            pm.bindPopup(`<b>Passenger: ${escapeHtml(p.name)}</b><br>Pickup: ${escapeHtml(p.pickupLocation)}`);
+            mapMarkers.push(pm);
+            bounds.push(p.pickupCoords);
+            waypoints.push(p.pickupCoords);
+          }
+        });
+
+        if (match.coords && waypoints.length > 0) {
+          waypoints.push(match.coords);
+          const polyline = L.polyline(waypoints, {
+            color: routeColor,
+            weight: 4,
+            opacity: 0.75,
+            dashArray: '6, 6'
+          }).addTo(map);
+          mapPolylines.push(polyline);
+        }
+      });
+
+      // Passagers non attribués en orange
+      matchPassengers.filter(p => !p.assignedCarId).forEach(p => {
+        if (p.pickupCoords) {
+          const pm = L.marker(p.pickupCoords, {
+            icon: L.divIcon({
+              className: 'custom-icon',
+              html: `<div style="background:#F59E0B; width:12px; height:12px; border-radius:50%; border:2px solid white;"></div>`
+            })
+          }).addTo(map);
+          pm.bindPopup(`<b>Unassigned: ${escapeHtml(p.name)}</b><br>Pickup: ${escapeHtml(p.pickupLocation)}`);
+          mapMarkers.push(pm);
+          bounds.push(p.pickupCoords);
+        }
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+
+    // SMART AUTO-ASSIGNMENT ALGORITHM (MINIMAL DETOUR OPTIMIZATION)
+    window.autoAssignPassengers = async function() {
+      const match = db.matches.find(m => m.id === currentMatchId);
+      if (!match) return;
+
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+      const unassigned = matchPassengers.filter(p => !p.assignedCarId);
+
+      if (unassigned.length === 0) {
+        showToast('All passengers are already assigned!');
+        return;
+      }
+
+      if (matchCars.length === 0) {
+        showToast('No vehicles available for auto-assignment.');
+        return;
+      }
+
+      // Global greedy matching: instead of assigning passenger-by-passenger in whatever order
+      // they appear in the list (which can lock in a mediocre pairing early on), we look at
+      // every possible (passenger, car) pair, sort all of them by detour, and lock in the best
+      // pairs first. This gives a noticeably better overall result for the group.
+      const seatsRemaining = {};
+      matchCars.forEach(c => {
+        const onboard = matchPassengers.filter(pass => pass.assignedCarId === c.id);
+        seatsRemaining[c.id] = c.seatsTotal - onboard.length;
+      });
+
+      const candidatePairs = [];
+      for (const p of unassigned) {
+        for (const c of matchCars) {
+          if (c.startCoords && p.pickupCoords && match.coords) {
+            const directDist = getDistanceKm(c.startCoords, match.coords);
+            const detourDist = getDistanceKm(c.startCoords, p.pickupCoords) + getDistanceKm(p.pickupCoords, match.coords);
+            candidatePairs.push({ passenger: p, car: c, detour: detourDist - directDist });
+          }
+        }
+      }
+      candidatePairs.sort((a, b) => a.detour - b.detour);
+
+      const assignedPassengerIds = new Set();
+      let assignedCount = 0;
+      for (const pair of candidatePairs) {
+        if (assignedPassengerIds.has(pair.passenger.id)) continue;
+        if (seatsRemaining[pair.car.id] <= 0) continue;
+        pair.passenger.assignedCarId = pair.car.id;
+        seatsRemaining[pair.car.id]--;
+        assignedPassengerIds.add(pair.passenger.id);
+        assignedCount++;
+      }
+
+      if (assignedCount > 0) {
+        saveState();
+        showToast(`Auto-assigned ${assignedCount} passenger(s) by minimal route detour!`);
+      } else {
+        showToast('No free seats available in vehicles.');
+      }
+    };
+
+    window.shareCarWhatsApp = async function(carId) {
+      const match = db.matches.find(m => m.id === currentMatchId);
+      const car = db.cars.find(c => c.id === carId);
+      if (!match || !car) return;
+
+      const onboard = db.passengers.filter(p => p.matchId === currentMatchId && p.assignedCarId === car.id);
+      
+      let carTravelMins = 30;
+      if (car.startCoords && match.coords) {
+        carTravelMins = await getTravelMinutes(car.startCoords, match.coords, onboard.length);
+      }
+      const calcDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+      const displayDepartureTime = car.customDepartureTime || calcDepartureTime;
+
+      const googleMapsNavUrl = buildGoogleMapsUrl(car, match, onboard);
+
+      let msg = `🚗 *Surbiton HC Carpool - Schedule*\n\n`;
+      msg += `Match: *vs ${match.opponent}* (${formatDate(match.date)})\n`;
+      msg += `Driver: *${car.driverName}* (${car.carModel || 'Car'})\n`;
+      msg += `📍 Departure Point: ${car.startLocation} (${car.postcode})\n`;
+      msg += `⏰ Departure Time: *${displayDepartureTime}*\n\n`;
+      msg += `*Passenger Pickups:*\n`;
+
+      if (onboard.length === 0) {
+        msg += `_No passengers assigned yet_\n`;
+      } else {
+        for (const p of onboard) {
+          let pTravelMins = carTravelMins;
+          if (p.pickupCoords && match.coords) {
+            pTravelMins = await getTravelMinutes(p.pickupCoords, match.coords, 0);
+          }
+          const calcPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          const displayPickupTime = p.customPickupTime || calcPickupTime;
+
+          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode}) -> Pickup at *${displayPickupTime}*\n`;
+        }
+      }
+
+      msg += `\n🏟 Pitch: ${match.venueName} (${match.postcode})\n`;
+      msg += `⏰ Meet Time: ${match.convocationTime}\n\n`;
+      msg += `🗺 *Google Maps GPS Route:* ${googleMapsNavUrl}`;
+
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(whatsappUrl, '_blank');
+    };
+
+    window.copyShareLink = function() {
+      const match = db.matches.find(m => m.id === currentMatchId);
+      const matchTitle = match ? `vs ${match.opponent}` : 'the next game';
+      const matchDate = match ? formatDate(match.date) : '';
+      const matchMeet = match ? match.convocationTime : '';
+      const matchPostcode = match ? match.postcode : '';
+
+      const shareText = `🏑 *Surbiton HC - Away Carpool*\n\n` +
+        `Match: *${matchTitle}* (${matchDate})\n` +
+        `📍 Location: ${matchPostcode}\n` +
+        `⏰ Meet Time: ${matchMeet}\n\n` +
+        `Offer a lift or request a pickup:\n` +
+        `${window.location.href}`;
+
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+      window.open(whatsappUrl, '_blank');
+    };
+
+    // MANUAL MATCH ADDITION HANDLERS (Captain Protected)
+    window.openAddMatchModal = function() {
+      if (!isCaptain) {
+        alert('Only the Team Captain can add matches.');
+        return;
+      }
+      document.getElementById('addMatchForm').reset();
+      document.getElementById('addMatchModal').classList.remove('hidden');
+    };
+
+    window.handleAddMatchSubmit = async function(e) {
+      e.preventDefault();
+      if (!isCaptain) return;
+
+      const postcode = document.getElementById('addMatchPostcode').value.toUpperCase().trim();
+      const venueName = document.getElementById('addMatchVenueName').value;
+      const opponent = document.getElementById('addMatchOpponent').value;
+      const date = document.getElementById('addMatchDate').value;
+      const convocationTime = document.getElementById('addMatchConvocation').value;
+      const kickoffTime = document.getElementById('addMatchKickoff').value;
+
+      document.getElementById('mapStatus').innerText = 'Locating Postcode...';
+      const coords = await geocodeUKPostcode(postcode, venueName);
+      document.getElementById('mapStatus').innerText = 'Live Routes Active';
+
+      const newMatch = {
+        id: 'manual-' + Date.now(),
+        opponent,
+        venueName,
+        postcode,
+        date,
+        convocationTime,
+        kickoffTime,
+        coords: coords || [51.4112, -0.2391]
+      };
+
+      db.matches.push(newMatch);
+      currentMatchId = newMatch.id;
+
+      saveState();
+      closeModal('addMatchModal');
+      showToast('New match added!');
+    };
+
+    window.openEditMatchModal = function() {
+      if (!isCaptain) {
+        alert('Only the Team Captain can edit matches.');
+        return;
+      }
+      const match = db.matches.find(m => m.id === currentMatchId);
+      if (!match) return;
+
+      document.getElementById('editMatchOpponent').value = match.opponent;
+      document.getElementById('editMatchDate').value = match.date;
+      document.getElementById('editMatchVenueName').value = match.venueName || '';
+      document.getElementById('editMatchPostcode').value = match.postcode || '';
+      document.getElementById('editMatchConvocation').value = match.convocationTime;
+      document.getElementById('editMatchKickoff').value = match.kickoffTime;
+
+      document.getElementById('editMatchModal').classList.remove('hidden');
+    };
+
+    window.handleEditMatchSubmit = async function(e) {
+      e.preventDefault();
+      if (!isCaptain) return;
+
+      const match = db.matches.find(m => m.id === currentMatchId);
+      if (match) {
+        match.opponent = document.getElementById('editMatchOpponent').value;
+        match.date = document.getElementById('editMatchDate').value;
+        match.venueName = document.getElementById('editMatchVenueName').value;
+        match.postcode = document.getElementById('editMatchPostcode').value.toUpperCase().trim();
+        match.convocationTime = document.getElementById('editMatchConvocation').value;
+        match.kickoffTime = document.getElementById('editMatchKickoff').value;
+
+        document.getElementById('mapStatus').innerText = 'Locating Postcode...';
+        const coords = await geocodeUKPostcode(match.postcode, match.venueName);
+        if (coords) match.coords = coords;
+        document.getElementById('mapStatus').innerText = 'Live Routes Active';
+
+        saveState();
+        closeModal('editMatchModal');
+        showToast('Fixture & location updated live');
+      }
+    };
+
+    window.deleteCurrentMatch = function() {
+      if (!isCaptain) {
+        alert('Only the Team Captain can delete matches.');
+        return;
+      }
+      if (!currentMatchId) return;
+      if (confirm('Are you sure you want to delete this fixture? All players will see it removed in real-time.')) {
+        db.matches = db.matches.filter(m => m.id !== currentMatchId);
+        db.cars = db.cars.filter(c => c.matchId !== currentMatchId);
+        db.passengers = db.passengers.filter(p => p.matchId !== currentMatchId);
+
+        saveState();
+        closeModal('editMatchModal');
+
+        if (db.matches.length > 0) {
+          currentMatchId = db.matches[0].id;
+        } else {
+          currentMatchId = null;
+        }
+        showToast('Fixture deleted');
+      }
+    };
+
+    window.openAssignModal = function(passengerId) {
+      activeAssignPassengerId = passengerId;
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+      const listEl = document.getElementById('assignDriversList');
+
+      if (matchCars.length === 0) {
+        listEl.innerHTML = `<div class="text-xs text-slate-500 py-2">No cars available. Add a vehicle first.</div>`;
+      } else {
+        listEl.innerHTML = matchCars.map(c => {
+          const taken = matchPassengers.filter(p => p.assignedCarId === c.id).length;
+          const free = c.seatsTotal - taken;
+          return `
+            <button onclick="window.confirmAssign('${c.id}')" ${free <= 0 ? 'disabled' : ''} class="w-full text-left p-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-between disabled:opacity-40">
+              <div>
+                <div class="text-xs font-bold text-slate-900">${escapeHtml(c.driverName)}</div>
+                <div class="text-[10px] text-slate-500">${escapeHtml(c.startLocation)} (${escapeHtml(c.postcode)})</div>
+              </div>
+              <span class="text-[10px] font-bold text-slate-600">${free} free</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      document.getElementById('assignModal').classList.remove('hidden');
+    };
+
+    window.confirmAssign = function(carId) {
+      if (!activeAssignPassengerId) return;
+      const pass = db.passengers.find(p => p.id === activeAssignPassengerId);
+      if (pass) {
+        pass.assignedCarId = carId;
+        saveState();
+        closeModal('assignModal');
+        showToast('Passenger assigned live!');
+      }
+    };
+
+    window.unassignPassenger = function(passId) {
+      const pass = db.passengers.find(p => p.id === passId);
+      if (pass) {
+        pass.assignedCarId = null;
+        saveState();
+      }
+    };
+
+    window.handleOfferSubmit = async function(e) {
+      e.preventDefault();
+      const pc = document.getElementById('driverPostcode').value.toUpperCase().trim();
+      const loc = document.getElementById('driverStartLocation').value || pc;
+
+      if (editingCarId) {
+        const car = db.cars.find(c => c.id === editingCarId);
+        if (!car || !canManage(car)) { showToast('You can no longer edit this vehicle.'); closeModal('offerModal'); return; }
+        const postcodeChanged = car.postcode !== pc;
+        car.driverName = document.getElementById('driverName').value;
+        car.seatsTotal = Number(document.getElementById('driverSeats').value);
+        car.carModel = document.getElementById('driverCarModel').value;
+        car.postcode = pc;
+        car.startLocation = loc;
+        car.notes = document.getElementById('driverNotes').value;
+        if (postcodeChanged) {
+          car.startCoords = await geocodeUKPostcode(pc, loc) || car.startCoords;
+        }
+        saveState();
+        closeModal('offerModal');
+        document.getElementById('offerForm').reset();
+        showToast('Vehicle updated');
+        editingCarId = null;
+        return;
+      }
+
+      const geocoded = await geocodeUKPostcode(pc, loc);
+      const coords = geocoded || [51.3932 + (Math.random()-0.5)*0.02, -0.3038 + (Math.random()-0.5)*0.02];
+
+      db.cars.push({
+        id: 'car-' + Date.now(),
+        matchId: currentMatchId,
+        driverName: document.getElementById('driverName').value,
+        seatsTotal: Number(document.getElementById('driverSeats').value),
+        carModel: document.getElementById('driverCarModel').value,
+        postcode: pc,
+        startLocation: loc,
+        startCoords: coords,
+        notes: document.getElementById('driverNotes').value,
+        customDepartureTime: null,
+        ownerToken: DEVICE_TOKEN
+      });
+
+      saveState();
+      closeModal('offerModal');
+      document.getElementById('offerForm').reset();
+      showToast(geocoded ? 'Vehicle added' : 'Vehicle added — postcode not found, check its pin on the map');
+    };
+
+    window.openRequestModal = function(passengerId) {
+      const passenger = passengerId ? db.passengers.find(p => p.id === passengerId) : null;
+      if (passengerId && (!passenger || !canManage(passenger))) {
+        alert("Only the person who made this request, or the Captain, can edit it.");
+        return;
+      }
+      editingPassengerId = passenger ? passenger.id : null;
+
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+      const selectEl = document.getElementById('passengerCarChoice');
+
+      let options = `<option value="">-- No preference (Auto / Any car) --</option>`;
+      matchCars.forEach(c => {
+        const taken = matchPassengers.filter(p => p.assignedCarId === c.id && p.id !== editingPassengerId).length;
+        const free = c.seatsTotal - taken;
+        const isCurrentChoice = passenger && passenger.assignedCarId === c.id;
+        options += `<option value="${c.id}" ${(free <= 0 && !isCurrentChoice) ? 'disabled' : ''}>${escapeHtml(c.driverName)} - ${escapeHtml(c.startLocation)} (${free} free seat(s))</option>`;
+      });
+
+      selectEl.innerHTML = options;
+      document.getElementById('requestModalTitle').innerText = passenger ? 'Edit Your Request' : 'Request a Lift';
+      document.getElementById('requestModalSubmitBtn').innerText = passenger ? 'Save Changes' : 'Submit Request';
+      document.getElementById('passengerName').value = passenger ? passenger.name : '';
+      document.getElementById('passengerPostcode').value = passenger ? passenger.postcode : '';
+      document.getElementById('passengerPickupLocation').value = passenger ? passenger.pickupLocation : '';
+      selectEl.value = passenger ? (passenger.assignedCarId || '') : '';
+
+      document.getElementById('requestModal').classList.remove('hidden');
+    };
+
+    window.handleRequestSubmit = async function(e) {
+      e.preventDefault();
+      const pc = document.getElementById('passengerPostcode').value.toUpperCase().trim();
+      const loc = document.getElementById('passengerPickupLocation').value || pc;
+      const preferredCarId = document.getElementById('passengerCarChoice').value || null;
+
+      if (editingPassengerId) {
+        const passenger = db.passengers.find(p => p.id === editingPassengerId);
+        if (!passenger || !canManage(passenger)) { showToast('You can no longer edit this request.'); closeModal('requestModal'); return; }
+        const postcodeChanged = passenger.postcode !== pc;
+        passenger.name = document.getElementById('passengerName').value;
+        passenger.postcode = pc;
+        passenger.pickupLocation = loc;
+        passenger.assignedCarId = preferredCarId;
+        if (postcodeChanged) {
+          passenger.pickupCoords = await geocodeUKPostcode(pc, loc) || passenger.pickupCoords;
+        }
+        saveState();
+        closeModal('requestModal');
+        document.getElementById('requestForm').reset();
+        showToast('Request updated');
+        editingPassengerId = null;
+        return;
+      }
+
+      const geocoded = await geocodeUKPostcode(pc, loc);
+      const coords = geocoded || [51.3932 + (Math.random()-0.5)*0.02, -0.3038 + (Math.random()-0.5)*0.02];
+
+      db.passengers.push({
+        id: 'pass-' + Date.now(),
+        matchId: currentMatchId,
+        name: document.getElementById('passengerName').value,
+        postcode: pc,
+        pickupLocation: loc,
+        pickupCoords: coords,
+        assignedCarId: preferredCarId,
+        customPickupTime: null,
+        ownerToken: DEVICE_TOKEN
+      });
+
+      saveState();
+      closeModal('requestModal');
+      document.getElementById('requestForm').reset();
+      if (!geocoded) { showToast('Request submitted — postcode not found, check its pin on the map'); }
+      else { showToast(preferredCarId ? 'Request submitted & assigned!' : 'Request submitted'); }
+    };
+
+    window.syncEnglandHockeyFixtures = function() {
+      if (!isCaptain) return;
+      document.getElementById('syncBtn').innerText = 'Syncing...';
+      setTimeout(() => {
+        db.matches.push({ id: 'eh-' + Date.now(), opponent: 'Merton 3s', venueName: 'Morden Recreation Ground', postcode: 'SM4 4AT', date: '2026-11-21', convocationTime: '11:00', kickoffTime: '12:15', coords: [51.3965, -0.1982] });
+        saveState();
+        document.getElementById('syncBtn').innerText = 'Sync Away Fixtures';
+        closeModal('syncModal');
+        showToast('Fixtures synced!');
+      }, 800);
+    };
+
+    window.deleteCar = function(id) {
+      const car = db.cars.find(c => c.id === id);
+      if (!car || !canManage(car)) {
+        alert("Only the person who added this car, or the Captain, can remove it.");
+        return;
+      }
+      if (confirm('Delete car?')) {
+        db.cars = db.cars.filter(c => c.id !== id);
+        db.passengers.forEach(p => { if (p.assignedCarId === id) p.assignedCarId = null; });
+        saveState();
+      }
+    };
+
+    window.deletePassenger = function(id) {
+      const passenger = db.passengers.find(p => p.id === id);
+      if (!passenger || !canManage(passenger)) {
+        alert("Only the person who made this request, or the Captain, can remove it.");
+        return;
+      }
+      if (confirm('Delete request?')) {
+        db.passengers = db.passengers.filter(p => p.id !== id);
+        saveState();
+      }
+    };
+
+    // UI Helpers
+    window.openOfferModal = function(carId) {
+      const car = carId ? db.cars.find(c => c.id === carId) : null;
+      if (carId && (!car || !canManage(car))) {
+        alert("Only the person who added this car, or the Captain, can edit it.");
+        return;
+      }
+      editingCarId = car ? car.id : null;
+      document.getElementById('offerModalTitle').innerText = car ? 'Edit Vehicle' : 'Offer a Ride';
+      document.getElementById('offerModalSubmitBtn').innerText = car ? 'Save Changes' : 'Add Vehicle';
+      document.getElementById('driverName').value = car ? car.driverName : '';
+      document.getElementById('driverSeats').value = car ? car.seatsTotal : '';
+      document.getElementById('driverCarModel').value = car ? car.carModel : '';
+      document.getElementById('driverPostcode').value = car ? car.postcode : '';
+      document.getElementById('driverStartLocation').value = car ? car.startLocation : '';
+      document.getElementById('driverNotes').value = car ? car.notes : '';
+      document.getElementById('offerModal').classList.remove('hidden');
+    };
+    window.openSyncModal = function() { if(isCaptain) document.getElementById('syncModal').classList.remove('hidden'); };
+    window.closeModal = function(id) { document.getElementById(id).classList.add('hidden'); };
+    function formatDate(d) { if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; }
+    function escapeHtml(s) { return (s||'').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toastMessage').innerText = msg;
+      t.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 2500);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+    });
+  </script>
+</body>
+</html>
