@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Surbiton HC - Transport & Covoiturage</title>
   <style>
     :root {
@@ -12,8 +12,6 @@
       --card-bg: #ffffff;
       --text: #333333;
     }
-
-    * { box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -41,6 +39,10 @@
       margin-bottom: 30px;
     }
 
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
     .card {
       background: var(--card-bg);
       border-radius: 8px;
@@ -62,6 +64,324 @@
 
     label {
       display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+      font-size: 0.95rem;
+    }
+
+    small {
+      display: block;
+      color: #666;
+      font-size: 0.78rem;
+      margin-top: 4px;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+      font-size: 0.95rem;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: #001f48;
+    }
+
+    /* Styles pour la liste des voitures et passagers */
+    .driver-item {
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #fafbfc;
+    }
+
+    .driver-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .passenger-list {
+      margin-top: 10px;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .passenger-item {
+      background: #fff;
+      border: 1px solid #eaeaea;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-top: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Style des boutons Contact */
+    .contact-actions {
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    .btn-contact {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      text-decoration: none;
+      font-weight: 600;
+      color: white;
+    }
+
+    .btn-wa { background-color: #25D366; }
+    .btn-wa:hover { background-color: #1da851; }
+    .btn-sms { background-color: #007aff; }
+    .btn-sms:hover { background-color: #0056b3; }
+
+    .badge {
+      background-color: #e30613;
+      color: white;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🏒 Surbiton HC - Gestion Covoiturage</h1>
+
+  <div class="grid">
+    <!-- Formulaire 1: Offrir un trajet -->
+    <div class="card">
+      <h2>🚘 Proposer un véhicule</h2>
+      <form id="offerForm">
+        <div class="form-group">
+          <label for="driverName">Nom complet :</label>
+          <input type="text" id="driverName" required placeholder="ex: Alex Smith">
+        </div>
+        <div class="form-group">
+          <label for="driverPhone">Numéro WhatsApp / Mobile :</label>
+          <input type="tel" id="driverPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447123456789" required>
+          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
+        </div>
+        <div class="form-group">
+          <label for="seats">Places disponibles dans le véhicule :</label>
+          <input type="number" id="seats" min="1" max="8" value="3" required>
+        </div>
+        <button type="submit">Enregistrer le véhicule</button>
+      </form>
+    </div>
+
+    <!-- Formulaire 2: Demander un trajet -->
+    <div class="card">
+      <h2>🙋‍♂️ Demander un trajet</h2>
+      <form id="requestForm">
+        <div class="form-group">
+          <label for="passengerName">Nom complet :</label>
+          <input type="text" id="passengerName" required placeholder="ex: Sam Taylor">
+        </div>
+        <div class="form-group">
+          <label for="passengerPhone">Numéro WhatsApp / Mobile :</label>
+          <input type="tel" id="passengerPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447987654321" required>
+          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
+        </div>
+        <div class="form-group">
+          <label for="preferredDriver">Chauffeur / Véhicule préféré :</label>
+          <select id="preferredDriver">
+            <option value="">-- Pas de préférence (Liste d'attente) --</option>
+          </select>
+        </div>
+        <button type="submit">Envoyer ma demande</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Affichage du Dashboard -->
+  <div class="card">
+    <h2>📋 Répartition des Trajets</h2>
+    <div id="driversList"></div>
+    
+    <h3 style="margin-top:20px; color: var(--primary);">Passagers en attente d'attribution</h3>
+    <ul id="unassignedList" class="passenger-list"></ul>
+  </div>
+</div>
+
+<script>
+  // État de l'application
+  let drivers = [];
+  let unassignedPassengers = [];
+
+  // Fonction utilitaire pour nettoyer le téléphone pour WhatsApp
+  function formatPhoneForWhatsApp(phone) {
+    return phone.replace(/[^0-9]/g, '');
+  }
+
+  // Générateur HTML des boutons de contact
+  function renderContactButtons(phone, name) {
+    if (!phone) return '';
+    const cleanPhone = formatPhoneForWhatsApp(phone);
+    const encodedMsg = encodeURIComponent(`Salut ${name}, à propos du covoiturage Surbiton HC...`);
+    
+    return `
+      <span class="contact-actions">
+        <a class="btn-contact btn-wa" href="https://wa.me/${cleanPhone}?text=${encodedMsg}" target="_blank" title="Envoyer WhatsApp">
+          💬 WA
+        </a>
+        <a class="btn-contact btn-sms" href="sms:${phone}" title="Envoyer SMS">
+          📱 SMS
+        </a>
+      </span>
+    `;
+  }
+
+  // Mettre à jour la liste déroulante des chauffeurs
+  function updateDriverDropdown() {
+    const select = document.getElementById('preferredDriver');
+    select.innerHTML = '<option value="">-- Pas de préférence (Liste d\'attente) --</option>';
+    
+    drivers.forEach(driver => {
+      const remainingSeats = driver.seats - driver.passengers.length;
+      if (remainingSeats > 0) {
+        const option = document.createElement('option');
+        option.value = driver.id;
+        option.textContent = `${driver.name} (${remainingSeats} place(s) libre(s))`;
+        select.appendChild(option);
+      }
+    });
+  }
+
+  // Rendu global de l'interface
+  function render() {
+    const driversContainer = document.getElementById('driversList');
+    driversContainer.innerHTML = '';
+
+    if (drivers.length === 0) {
+      driversContainer.innerHTML = '<p style="color:#777;">Aucun véhicule proposé pour le moment.</p>';
+    } else {
+      drivers.forEach(driver => {
+        const remainingSeats = driver.seats - driver.passengers.length;
+        
+        let passengersHTML = '';
+        driver.passengers.forEach(p => {
+          passengersHTML += `
+            <li class="passenger-item">
+              <span>👤 ${p.name}</span>
+              ${renderContactButtons(p.phone, p.name)}
+            </li>
+          `;
+        });
+
+        const driverCard = document.createElement('div');
+        driverCard.className = 'driver-item';
+        driverCard.innerHTML = `
+          <div class="driver-header">
+            <div>
+              <strong>🚘 ${driver.name}</strong> 
+              ${renderContactButtons(driver.phone, driver.name)}
+            </div>
+            <span class="badge">${remainingSeats} / ${driver.seats} places libres</span>
+          </div>
+          <div><strong>Passagers inscrits :</strong></div>
+          <ul class="passenger-list">
+            ${passengersHTML || '<li style="color:#888; font-size:0.85rem; padding:4px;">Aucun passager pour l\'instant.</li>'}
+          </ul>
+        `;
+        driversContainer.appendChild(driverCard);
+      });
+    }
+
+    // Passagers en attente
+    const unassignedContainer = document.getElementById('unassignedList');
+    unassignedContainer.innerHTML = '';
+    
+    if (unassignedPassengers.length === 0) {
+      unassignedContainer.innerHTML = '<li style="color:#777; border:none;">Aucun passager en attente.</li>';
+    } else {
+      unassignedPassengers.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'passenger-item';
+        li.innerHTML = `
+          <span>👤 ${p.name}</span>
+          ${renderContactButtons(p.phone, p.name)}
+        `;
+        unassignedContainer.appendChild(li);
+      });
+    }
+
+    updateDriverDropdown();
+  }
+
+  // Gestion formulaire : Offrir un trajet
+  document.getElementById('offerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const name = document.getElementById('driverName').value;
+    const phone = document.getElementById('driverPhone').value;
+    const seats = parseInt(document.getElementById('seats').value);
+
+    drivers.push({
+      id: Date.now().toString(),
+      name: name,
+      phone: phone,
+      seats: seats,
+      passengers: []
+    });
+
+    this.reset();
+    render();
+  });
+
+  // Gestion formulaire : Demander un trajet
+  document.getElementById('requestForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const name = document.getElementById('passengerName').value;
+    const phone = document.getElementById('passengerPhone').value;
+    const preferredDriverId = document.getElementById('preferredDriver').value;
+
+    const passengerData = { name, phone };
+
+    if (preferredDriverId) {
+      const driver = drivers.find(d => d.id === preferredDriverId);
+      if (driver && driver.passengers.length < driver.seats) {
+        driver.passengers.push(passengerData);
+      } else {
+        alert("Ce véhicule est complet. Vous êtes placé en liste d'attente.");
+        unassignedPassengers.push(passengerData);
+      }
+    } else {
+      unassignedPassengers.push(passengerData);
+    }
+
+    this.reset();
+    render();
+  });
+
+  // Initialisation
+  render();
+</script>
+
+</body>
+</html>      display: block;
       font-weight: 600;
       margin-bottom: 5px;
       font-size: 0.9rem;
