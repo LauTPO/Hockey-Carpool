@@ -429,6 +429,11 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+    // --- GOOGLE MAPS API KEY CONFIGURATION ---
+    // Collez votre clé API Google Maps ici pour activer Distance Matrix avec trafic réel.
+    // Laissez vide "" pour basculer automatiquement sur l'algorithme OSRM majoré.
+    const GOOGLE_MAPS_API_KEY = "";
+
     // Firebase Config
     const firebaseConfig = {
       databaseURL: "https://shc-mongooses-carpool-default-rtdb.europe-west1.firebasedatabase.app"
@@ -449,8 +454,8 @@
         { id: 'car-1', matchId: 'eh-1', driverName: 'Edward K.', seatsTotal: 4, carModel: 'BMW X3', postcode: 'KT6 4BN', startLocation: 'Surbiton Station', startCoords: [51.3932, -0.3038], notes: 'Leaving near Sugden Rd', customDepartureTime: null }
       ],
       passengers: [
-        { id: 'pass-1', matchId: 'eh-1', name: 'Harry B.', postcode: 'KT6 4BN', pickupLocation: 'Surbiton Station', pickupCoords: [51.3930, -0.3035], assignedCarId: 'car-1' },
-        { id: 'pass-2', matchId: 'eh-1', name: 'Charlie M.', postcode: 'KT6 5AL', pickupLocation: 'Long Ditton', pickupCoords: [51.3881, -0.3152], assignedCarId: null }
+        { id: 'pass-1', matchId: 'eh-1', name: 'Harry B.', postcode: 'KT6 4BN', pickupLocation: 'Surbiton Station', pickupCoords: [51.3930, -0.3035], assignedCarId: 'car-1', customPickupTime: null },
+        { id: 'pass-2', matchId: 'eh-1', name: 'Charlie M.', postcode: 'KT6 5AL', pickupLocation: 'Long Ditton', pickupCoords: [51.3881, -0.3152], assignedCarId: null, customPickupTime: null }
       ]
     };
 
@@ -572,13 +577,22 @@
       return url;
     }
 
-    // DRIVER DEPARTURE TIME CUSTOMIZATION
+    // CUSTOM TIME EDITING HANDLERS
     window.updateDriverDepartureTime = function(carId, newTime) {
       const car = db.cars.find(c => c.id === carId);
       if (car) {
         car.customDepartureTime = newTime.trim() || null;
         saveState();
-        showToast('Departure time updated');
+        showToast('Driver departure time updated');
+      }
+    };
+
+    window.updatePassengerPickupTime = function(passengerId, newTime) {
+      const passenger = db.passengers.find(p => p.id === passengerId);
+      if (passenger) {
+        passenger.customPickupTime = newTime.trim() || null;
+        saveState();
+        showToast('Passenger pickup time updated');
       }
     };
 
@@ -624,9 +638,31 @@
       return R * c;
     }
 
-    async function getOSRMTravelMinutes(startCoords, endCoords) {
+    // ACCURATE TRAVEL TIME CALCULATOR (Google Maps API or Enhanced OSRM)
+    async function getTravelMinutes(startCoords, endCoords, passengerCount = 0) {
       if (!startCoords || !endCoords) return 30;
 
+      // 1. Google Maps Distance Matrix API (Si la clé est renseignée)
+      if (GOOGLE_MAPS_API_KEY) {
+        try {
+          const originStr = `${startCoords[0]},${startCoords[1]}`;
+          const destStr = `${endCoords[0]},${endCoords[1]}`;
+          const gmapsUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originStr}&destinations=${destStr}&departure_time=now&key=${GOOGLE_MAPS_API_KEY}`;
+          const res = await fetch(gmapsUrl);
+          const data = await res.json();
+
+          if (data.status === 'OK' && data.rows[0].elements[0].status === 'OK') {
+            const elem = data.rows[0].elements[0];
+            const durationSec = elem.duration_in_traffic ? elem.duration_in_traffic.value : elem.duration.value;
+            const minutes = Math.round(durationSec / 60);
+            return minutes + (passengerCount * 5); // Ajout de 5 min d'embarquement par passager
+          }
+        } catch (err) {
+          console.warn("Google Maps API error, falling back to OSRM:", err);
+        }
+      }
+
+      // 2. Fallback OSRM majoré avec marges de trafic et arrêts (Option B)
       try {
         const url = `https://router.project-osrm.org/route/v1/driving/${startCoords[1]},${startCoords[0]};${endCoords[1]},${endCoords[0]}?overview=false`;
         const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
@@ -634,14 +670,17 @@
 
         const data = await response.json();
         if (data.routes && data.routes.length > 0) {
-          return Math.round(data.routes[0].duration / 60);
+          const baseDurationMinutes = Math.round(data.routes[0].duration / 60);
+          // Majoration Trafic (+20%) + 5 minutes d'arrêt par passager récupéré
+          return Math.round(baseDurationMinutes * 1.20) + (passengerCount * 5);
         }
       } catch (e) {
         console.warn("OSRM API fallback applied:", e);
         const distKm = getDistanceKm(startCoords, endCoords);
-        return Math.max(15, Math.round((distKm / 40) * 60));
+        // Vitesse moyenne estimée à 30 km/h en zone métropolitaine UK + 5 min/passager
+        return Math.max(20, Math.round((distKm / 30) * 60) + (passengerCount * 5));
       }
-      return 30;
+      return 35;
     }
 
     function calculateDepartureTime(meetTimeStr, travelMinutes) {
@@ -724,7 +763,7 @@
         let pickupTime = '--:--';
         let travelMins = 30;
         if (p.pickupCoords && match.coords) {
-          travelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
+          travelMins = await getTravelMinutes(p.pickupCoords, match.coords, 0);
           pickupTime = calculateDepartureTime(match.convocationTime, travelMins + 5);
         }
         return `
@@ -760,7 +799,7 @@
 
         let carTravelMins = 30;
         if (car.startCoords && match.coords) {
-          carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
+          carTravelMins = await getTravelMinutes(car.startCoords, match.coords, onboard.length);
         }
         const calcDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
         const displayDepartureTime = car.customDepartureTime || calcDepartureTime;
@@ -768,14 +807,21 @@
         const onboardHtmlPromises = onboard.map(async (p) => {
           let pTravelMins = carTravelMins;
           if (p.pickupCoords && match.coords) {
-            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
+            pTravelMins = await getTravelMinutes(p.pickupCoords, match.coords, 0);
           }
-          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          const calcPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          const displayPickupTime = p.customPickupTime || calcPickupTime;
 
           return `
-            <div class="flex items-center justify-between text-[11px] text-slate-700 py-0.5">
-              <span>🙋 ${escapeHtml(p.name)} <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span> — <strong class="text-shc-magenta">Pickup: ${pPickupTime}</strong></span>
-              <button onclick="window.unassignPassenger('${p.id}')" class="text-slate-400 hover:text-amber-600"><i class="fa-solid fa-xmark"></i></button>
+            <div class="flex items-center justify-between text-[11px] text-slate-700 py-1 border-b border-slate-100 last:border-0">
+              <span class="flex items-center gap-1.5 flex-wrap">
+                <span>🙋 <strong>${escapeHtml(p.name)}</strong> <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span></span>
+                <span class="text-shc-magenta font-semibold flex items-center gap-1">
+                  — Pickup: 
+                  <input type="text" value="${displayPickupTime}" onchange="window.updatePassengerPickupTime('${p.id}', this.value)" title="Adjust passenger pickup time" class="w-12 bg-white border border-slate-300 rounded text-center px-1 text-slate-900 font-bold focus:outline-none focus:border-shc-magenta">
+                </span>
+              </span>
+              <button onclick="window.unassignPassenger('${p.id}')" class="text-slate-400 hover:text-amber-600 pl-2"><i class="fa-solid fa-xmark"></i></button>
             </div>
           `;
         });
@@ -793,14 +839,14 @@
                   ${escapeHtml(car.driverName)}
                   ${car.carModel ? `<span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">${escapeHtml(car.carModel)}</span>` : ''}
                 </div>
-                <div class="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span>From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)})</span>
                   <span>•</span>
                   <span class="text-shc-green font-bold flex items-center gap-1">
                     <i class="fa-solid fa-car-side"></i>Depart: 
                     <input type="text" value="${displayDepartureTime}" onchange="window.updateDriverDepartureTime('${car.id}', this.value)" title="Click to adjust driver departure time" class="w-12 bg-white border border-slate-300 rounded text-center px-1 text-slate-900 font-bold focus:outline-none focus:border-shc-green">
                   </span>
-                  <span class="text-slate-400">(${carTravelMins} min)</span>
+                  <span class="text-slate-400">(${carTravelMins} min total)</span>
                 </div>
               </div>
               <div class="flex items-center gap-1.5">
@@ -959,9 +1005,7 @@
           const seatsFree = c.seatsTotal - onboard.length;
 
           if (seatsFree > 0 && c.startCoords && p.pickupCoords && match.coords) {
-            // Direct distance Driver -> Pitch
             const directDist = getDistanceKm(c.startCoords, match.coords);
-            // Distance Driver -> Passenger -> Pitch
             const detourDist = getDistanceKm(c.startCoords, p.pickupCoords) + getDistanceKm(p.pickupCoords, match.coords);
             const detour = detourDist - directDist;
 
@@ -995,7 +1039,7 @@
       
       let carTravelMins = 30;
       if (car.startCoords && match.coords) {
-        carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
+        carTravelMins = await getTravelMinutes(car.startCoords, match.coords, onboard.length);
       }
       const calcDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
       const displayDepartureTime = car.customDepartureTime || calcDepartureTime;
@@ -1015,10 +1059,12 @@
         for (const p of onboard) {
           let pTravelMins = carTravelMins;
           if (p.pickupCoords && match.coords) {
-            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
+            pTravelMins = await getTravelMinutes(p.pickupCoords, match.coords, 0);
           }
-          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
-          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode}) -> Pickup at *${pPickupTime}*\n`;
+          const calcPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          const displayPickupTime = p.customPickupTime || calcPickupTime;
+
+          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode}) -> Pickup at *${displayPickupTime}*\n`;
         }
       }
 
@@ -1258,7 +1304,8 @@
         postcode: pc,
         pickupLocation: loc,
         pickupCoords: coords,
-        assignedCarId: preferredCarId
+        assignedCarId: preferredCarId,
+        customPickupTime: null
       });
 
       saveState();
