@@ -58,7 +58,7 @@
           <i class="fa-solid fa-rotate text-emerald-300"></i> <span class="hidden sm:inline">Sync Fixtures</span>
         </button>
         <button onclick="copyShareLink()" class="px-3 py-1.5 rounded-lg bg-shc-magenta hover:bg-shc-magentaDark text-white text-xs font-semibold transition flex items-center gap-2 shadow-sm">
-          <i class="fa-brands fa-whatsapp text-sm"></i> <span class="hidden sm:inline">Share on WhatsApp</span>
+          <i class="fa-brands fa-whatsapp text-sm"></i> <span class="hidden sm:inline">Share Match</span>
         </button>
       </div>
     </div>
@@ -111,11 +111,13 @@
           </div>
         </div>
 
-        <!-- Carpool Summary -->
+        <!-- Carpool Summary & Auto Match Button -->
         <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 min-w-[260px] space-y-3">
           <div class="flex items-center justify-between">
             <span id="statusBadge" class="text-xs font-bold px-2.5 py-1 rounded-md">Checking...</span>
-            <i class="fa-solid fa-circle-info text-slate-400 text-xs"></i>
+            <button onclick="window.autoAssignPassengers()" title="Optimize driver assignment based on locations" class="text-xs bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-assign
+            </button>
           </div>
           <div id="statusSubtitle" class="text-xs text-slate-500">---</div>
 
@@ -155,7 +157,7 @@
         <div class="space-y-1">
           <div class="text-xs font-bold text-shc-magenta uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-user-plus"></i> Passenger</div>
           <div class="text-sm font-bold text-slate-900">Need a Lift</div>
-          <div class="text-xs text-slate-500">Request pickup for this match</div>
+          <div class="text-xs text-slate-500">Request pickup & choose preferred driver</div>
         </div>
         <div class="w-8 h-8 rounded-lg bg-shc-magenta/10 group-hover:bg-shc-magenta text-shc-magenta group-hover:text-white flex items-center justify-center text-xs transition">
           <i class="fa-solid fa-hand"></i>
@@ -188,10 +190,10 @@
       </div>
 
       <div class="lg:col-span-5">
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3 h-[480px] flex flex-col">
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3 h-[520px] flex flex-col">
           <div class="flex items-center justify-between text-xs text-slate-500 font-semibold">
-            <span>UK Interactive Map</span>
-            <span id="mapStatus" class="text-[11px] text-shc-green font-bold">Live Map</span>
+            <span>UK Interactive Map & Routes</span>
+            <span id="mapStatus" class="text-[11px] text-shc-green font-bold">Live Routes Active</span>
           </div>
           <div id="map" class="w-full flex-1 rounded-lg border border-slate-200 z-10"></div>
         </div>
@@ -348,7 +350,7 @@
     <div class="bg-white border border-slate-200 w-full max-w-md rounded-xl p-6 shadow-2xl relative">
       <button onclick="closeModal('requestModal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
       <h3 class="text-lg font-bold text-shc-magenta mb-1">Request a Lift</h3>
-      <p class="text-xs text-slate-500 mb-4">Request pickup for this away match.</p>
+      <p class="text-xs text-slate-500 mb-4">Request pickup and optionally choose a driver.</p>
 
       <form id="requestForm" onsubmit="window.handleRequestSubmit(event)" class="space-y-4">
         <div>
@@ -365,6 +367,14 @@
             <input type="text" id="passengerPickupLocation" placeholder="e.g. Surbiton High Street" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-magenta">
           </div>
         </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Select Preferred Driver / Vehicle (Optional)</label>
+          <select id="passengerCarChoice" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-magenta font-medium">
+            <option value="">-- No preference (Auto / Any car) --</option>
+          </select>
+        </div>
+
         <div class="pt-2 flex justify-end gap-2">
           <button type="button" onclick="closeModal('requestModal')" class="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
           <button type="submit" class="bg-shc-magenta text-white font-bold px-4 py-1.5 rounded-lg text-xs hover:bg-shc-magentaDark transition">Submit Request</button>
@@ -435,10 +445,12 @@
       ]
     };
 
+    const ROUTE_COLORS = ['#004D25', '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EC4899'];
+
     let db = { matches: [], cars: [], passengers: [] };
     let currentMatchId = null;
     let activeAssignPassengerId = null;
-    let map = null, mapMarkers = [];
+    let map = null, mapMarkers = [], mapPolylines = [];
 
     // Realtime Listener
     onValue(dbRef, (snapshot) => {
@@ -511,6 +523,18 @@
       return null;
     }
 
+    function getDistanceKm(coord1, coord2) {
+      if (!coord1 || !coord2) return 999;
+      const R = 6371;
+      const dLat = (coord2[0] - coord1[0]) * Math.PI / 180;
+      const dLon = (coord2[1] - coord1[1]) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
     async function getOSRMTravelMinutes(startCoords, endCoords) {
       if (!startCoords || !endCoords) return 30;
 
@@ -525,15 +549,7 @@
         }
       } catch (e) {
         console.warn("OSRM API fallback applied:", e);
-        const R = 6371;
-        const dLat = (endCoords[0] - startCoords[0]) * Math.PI / 180;
-        const dLon = (endCoords[1] - startCoords[1]) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(startCoords[0] * Math.PI / 180) * Math.cos(endCoords[0] * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distKm = R * c;
-
+        const distKm = getDistanceKm(startCoords, endCoords);
         return Math.max(15, Math.round((distKm / 40) * 60));
       }
       return 30;
@@ -551,6 +567,19 @@
       const depMins = totalMinutes % 60;
 
       return `${String(depHours).padStart(2, '0')}:${String(depMins).padStart(2, '0')}`;
+    }
+
+    // Helper: Générateur de lien officiel Google Maps
+    function generateGoogleMapsUrl(originPostcode, destPostcode, waypointsPostcodes = []) {
+      const originStr = encodeURIComponent(originPostcode);
+      const destStr = encodeURIComponent(destPostcode);
+      let url = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destStr}`;
+
+      if (waypointsPostcodes.length > 0) {
+        const waypointsStr = waypointsPostcodes.map(wp => encodeURIComponent(wp)).join('|');
+        url += `&waypoints=${waypointsStr}`;
+      }
+      return url;
     }
 
     function renderTabs() {
@@ -587,7 +616,7 @@
       document.getElementById('matchKickoffTime').innerText = match.kickoffTime;
 
       await renderCarsAndPassengers(match);
-      await updateMapMarkers();
+      await updateMapMarkersAndRoutes();
     }
 
     async function renderCarsAndPassengers(match) {
@@ -648,7 +677,7 @@
         unassignedEl.innerHTML = unassignedCards.join('');
       }
 
-      const carsHtmlPromises = matchCars.map(async (car) => {
+      const carsHtmlPromises = matchCars.map(async (car, idx) => {
         const onboard = matchPassengers.filter(p => p.assignedCarId === car.id);
         const seatsFree = car.seatsTotal - onboard.length;
 
@@ -657,6 +686,10 @@
           carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
         }
         const carDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+
+        // Generation du lien Google Maps avec Waypoints (Passagers)
+        const waypointsPostcodes = onboard.map(p => p.postcode).filter(Boolean);
+        const gmapsUrl = generateGoogleMapsUrl(car.postcode, match.postcode, waypointsPostcodes);
 
         const onboardHtmlPromises = onboard.map(async (p) => {
           let pTravelMins = carTravelMins;
@@ -674,10 +707,12 @@
         });
 
         const onboardCards = await Promise.all(onboardHtmlPromises);
+        const routeColor = ROUTE_COLORS[idx % ROUTE_COLORS.length];
 
         return `
-          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3">
-            <div class="flex items-start justify-between">
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3 relative overflow-hidden">
+            <div class="absolute top-0 left-0 bottom-0 w-1.5" style="background-color: ${routeColor}"></div>
+            <div class="flex items-start justify-between pl-1">
               <div>
                 <div class="text-xs font-bold text-slate-900 flex items-center gap-2">
                   ${escapeHtml(car.driverName)}
@@ -687,15 +722,21 @@
                   From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)}) • <span class="text-shc-green font-bold"><i class="fa-solid fa-car-side mr-1"></i>Depart: ${carDepartureTime}</span> (${carTravelMins} min)
                 </div>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${seatsFree > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${seatsFree} seat(s) free</span>
-                <button onclick="window.deleteCar('${car.id}')" class="text-slate-400 hover:text-red-500 text-xs"><i class="fa-solid fa-trash"></i></button>
+              <div class="flex items-center gap-1.5">
+                <a href="${gmapsUrl}" target="_blank" title="Open complete route in Google Maps" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
+                  <i class="fa-solid fa-location-arrow text-[10px]"></i> <span class="hidden sm:inline">Google Maps</span>
+                </a>
+                <button onclick="window.shareCarWhatsApp('${car.id}')" title="Send car schedule on WhatsApp" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
+                  <i class="fa-brands fa-whatsapp text-xs"></i> <span class="hidden sm:inline">WhatsApp</span>
+                </button>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${seatsFree > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${seatsFree} free</span>
+                <button onclick="window.deleteCar('${car.id}')" class="text-slate-400 hover:text-red-500 text-xs pl-1"><i class="fa-solid fa-trash"></i></button>
               </div>
             </div>
 
-            ${car.notes ? `<div class="text-[11px] text-slate-600 italic bg-white p-2 rounded border border-slate-200">${escapeHtml(car.notes)}</div>` : ''}
+            ${car.notes ? `<div class="text-[11px] text-slate-600 italic bg-white p-2 rounded border border-slate-200 pl-2">${escapeHtml(car.notes)}</div>` : ''}
 
-            <div class="space-y-1 pt-1 border-t border-slate-200">
+            <div class="space-y-1 pt-1 border-t border-slate-200 pl-1">
               ${onboardCards.join('')}
             </div>
           </div>
@@ -711,10 +752,13 @@
       }
     }
 
-    async function updateMapMarkers() {
+    async function updateMapMarkersAndRoutes() {
       if (!map) initMap();
       mapMarkers.forEach(m => map.removeLayer(m));
+      mapPolylines.forEach(p => map.removeLayer(p));
       mapMarkers = [];
+      mapPolylines = [];
+
       const match = db.matches.find(m => m.id === currentMatchId);
       if (!match) return;
 
@@ -728,25 +772,74 @@
         const destMarker = L.marker(match.coords, {
           icon: L.divIcon({
             className: 'custom-icon',
-            html: `<div style="background:#D10056; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow:0 0 6px rgba(0,0,0,0.4);"></div>`
+            html: `<div style="background:#D10056; width:18px; height:18px; border-radius:50%; border:2px solid white; box-shadow:0 0 6px rgba(0,0,0,0.4); display:flex; align-items:center; justify-center; color:white; font-size:10px;"><i class="fa-solid fa-flag-checkered"></i></div>`
           })
         }).addTo(map);
-        destMarker.bindPopup(`<b>${escapeHtml(match.opponent)}</b><br>${escapeHtml(match.venueName)} (${escapeHtml(match.postcode)})`);
+        destMarker.bindPopup(`<b>Destination: ${escapeHtml(match.opponent)}</b><br>${escapeHtml(match.venueName)} (${escapeHtml(match.postcode)})`);
         mapMarkers.push(destMarker);
         bounds.push(match.coords);
       }
 
-      db.cars.filter(c => c.matchId === currentMatchId).forEach(c => {
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+
+      matchCars.forEach((c, idx) => {
+        const routeColor = ROUTE_COLORS[idx % ROUTE_COLORS.length];
+        const waypoints = [];
+
         if (c.startCoords) {
           const m = L.marker(c.startCoords, {
             icon: L.divIcon({
               className: 'custom-icon',
-              html: `<div style="background:#004D25; width:14px; height:14px; border-radius:50%; border:2px solid white; box-shadow:0 0 6px rgba(0,0,0,0.4);"></div>`
+              html: `<div style="background:${routeColor}; width:16px; height:16px; border-radius:50%; border:2px solid white; box-shadow:0 0 6px rgba(0,0,0,0.4);"></div>`
             })
           }).addTo(map);
-          m.bindPopup(`<b>Driver: ${escapeHtml(c.driverName)}</b><br>From: ${escapeHtml(c.startLocation)} (${escapeHtml(c.postcode)})`);
+          m.bindPopup(`<b>Car: ${escapeHtml(c.driverName)}</b><br>Start: ${escapeHtml(c.startLocation)} (${escapeHtml(c.postcode)})`);
           mapMarkers.push(m);
           bounds.push(c.startCoords);
+          waypoints.push(c.startCoords);
+        }
+
+        const onboard = matchPassengers.filter(p => p.assignedCarId === c.id);
+        onboard.forEach(p => {
+          if (p.pickupCoords) {
+            const pm = L.marker(p.pickupCoords, {
+              icon: L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background:${routeColor}; width:12px; height:12px; border-radius:50%; border:2px solid white; opacity:0.85;"></div>`
+              })
+            }).addTo(map);
+            pm.bindPopup(`<b>Passenger: ${escapeHtml(p.name)}</b><br>Pickup: ${escapeHtml(p.pickupLocation)}`);
+            mapMarkers.push(pm);
+            bounds.push(p.pickupCoords);
+            waypoints.push(p.pickupCoords);
+          }
+        });
+
+        if (match.coords && waypoints.length > 0) {
+          waypoints.push(match.coords);
+          const polyline = L.polyline(waypoints, {
+            color: routeColor,
+            weight: 4,
+            opacity: 0.75,
+            dashArray: '6, 6'
+          }).addTo(map);
+          mapPolylines.push(polyline);
+        }
+      });
+
+      // Passagers non attribués en orange
+      matchPassengers.filter(p => !p.assignedCarId).forEach(p => {
+        if (p.pickupCoords) {
+          const pm = L.marker(p.pickupCoords, {
+            icon: L.divIcon({
+              className: 'custom-icon',
+              html: `<div style="background:#F59E0B; width:12px; height:12px; border-radius:50%; border:2px solid white;"></div>`
+            })
+          }).addTo(map);
+          pm.bindPopup(`<b>Unassigned: ${escapeHtml(p.name)}</b><br>Pickup: ${escapeHtml(p.pickupLocation)}`);
+          mapMarkers.push(pm);
+          bounds.push(p.pickupCoords);
         }
       });
 
@@ -754,6 +847,101 @@
         map.fitBounds(bounds, { padding: [40, 40] });
       }
     }
+
+    window.autoAssignPassengers = async function() {
+      const match = db.matches.find(m => m.id === currentMatchId);
+      if (!match) return;
+
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+      const unassigned = matchPassengers.filter(p => !p.assignedCarId);
+
+      if (unassigned.length === 0) {
+        showToast('All passengers are already assigned!');
+        return;
+      }
+
+      if (matchCars.length === 0) {
+        showToast('No vehicles available for auto-assignment.');
+        return;
+      }
+
+      let assignedCount = 0;
+
+      for (const p of unassigned) {
+        let bestCar = null;
+        let minDistance = Infinity;
+
+        for (const c of matchCars) {
+          const onboard = matchPassengers.filter(pass => pass.assignedCarId === c.id);
+          const seatsFree = c.seatsTotal - onboard.length;
+
+          if (seatsFree > 0 && c.startCoords && p.pickupCoords) {
+            const dist = getDistanceKm(c.startCoords, p.pickupCoords);
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestCar = c;
+            }
+          }
+        }
+
+        if (bestCar) {
+          p.assignedCarId = bestCar.id;
+          assignedCount++;
+        }
+      }
+
+      if (assignedCount > 0) {
+        saveState();
+        showToast(`Auto-assigned ${assignedCount} passenger(s) by proximity!`);
+      } else {
+        showToast('No free seats available in vehicles.');
+      }
+    };
+
+    window.shareCarWhatsApp = async function(carId) {
+      const match = db.matches.find(m => m.id === currentMatchId);
+      const car = db.cars.find(c => c.id === carId);
+      if (!match || !car) return;
+
+      const onboard = db.passengers.filter(p => p.matchId === currentMatchId && p.assignedCarId === car.id);
+      
+      let carTravelMins = 30;
+      if (car.startCoords && match.coords) {
+        carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
+      }
+      const carDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+
+      const waypointsPostcodes = onboard.map(p => p.postcode).filter(Boolean);
+      const gmapsUrl = generateGoogleMapsUrl(car.postcode, match.postcode, waypointsPostcodes);
+
+      let msg = `🚗 *Surbiton HC Carpool - Schedule*\n\n`;
+      msg += `Match: *vs ${match.opponent}* (${formatDate(match.date)})\n`;
+      msg += `Driver: *${car.driverName}* (${car.carModel || 'Car'})\n`;
+      msg += `📍 Departure Point: ${car.startLocation} (${car.postcode})\n`;
+      msg += `⏰ Departure Time: *${carDepartureTime}*\n\n`;
+      msg += `*Passenger Pickups:*\n`;
+
+      if (onboard.length === 0) {
+        msg += `_No passengers assigned yet_\n`;
+      } else {
+        for (const p of onboard) {
+          let pTravelMins = carTravelMins;
+          if (p.pickupCoords && match.coords) {
+            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
+          }
+          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode}) -> Pickup at *${pPickupTime}*\n`;
+        }
+      }
+
+      msg += `\n🏟 Pitch: ${match.venueName} (${match.postcode})\n`;
+      msg += `⏰ Meet Time: ${match.convocationTime}\n\n`;
+      msg += `🗺 *Open GPS Route in Google Maps:*\n${gmapsUrl}`;
+
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(whatsappUrl, '_blank');
+    };
 
     window.copyShareLink = function() {
       const match = db.matches.find(m => m.id === currentMatchId);
@@ -766,7 +954,7 @@
         `Match: *${matchTitle}* (${matchDate})\n` +
         `📍 Location: ${matchPostcode}\n` +
         `⏰ Meet Time: ${matchMeet}\n\n` +
-        `Offer a lift or request a pickup (pickup times calculated automatically):\n` +
+        `Offer a lift or request a pickup:\n` +
         `${window.location.href}`;
 
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
@@ -790,7 +978,7 @@
 
       document.getElementById('mapStatus').innerText = 'Locating Postcode...';
       const coords = await geocodeUKPostcode(postcode, venueName);
-      document.getElementById('mapStatus').innerText = 'Live Map';
+      document.getElementById('mapStatus').innerText = 'Live Routes Active';
 
       const newMatch = {
         id: 'manual-' + Date.now(),
@@ -839,7 +1027,7 @@
         document.getElementById('mapStatus').innerText = 'Locating Postcode...';
         const coords = await geocodeUKPostcode(match.postcode, match.venueName);
         if (coords) match.coords = coords;
-        document.getElementById('mapStatus').innerText = 'Live Map';
+        document.getElementById('mapStatus').innerText = 'Live Routes Active';
 
         saveState();
         closeModal('editMatchModal');
@@ -936,10 +1124,27 @@
       showToast('Vehicle added');
     };
 
+    window.openRequestModal = function() {
+      const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
+      const matchPassengers = db.passengers.filter(p => p.matchId === currentMatchId);
+      const selectEl = document.getElementById('passengerCarChoice');
+
+      let options = `<option value="">-- No preference (Auto / Any car) --</option>`;
+      matchCars.forEach(c => {
+        const taken = matchPassengers.filter(p => p.assignedCarId === c.id).length;
+        const free = c.seatsTotal - taken;
+        options += `<option value="${c.id}" ${free <= 0 ? 'disabled' : ''}>${escapeHtml(c.driverName)} - ${escapeHtml(c.startLocation)} (${free} free seat(s))</option>`;
+      });
+
+      selectEl.innerHTML = options;
+      document.getElementById('requestModal').classList.remove('hidden');
+    };
+
     window.handleRequestSubmit = async function(e) {
       e.preventDefault();
       const pc = document.getElementById('passengerPostcode').value.toUpperCase().trim();
       const loc = document.getElementById('passengerPickupLocation').value || pc;
+      const preferredCarId = document.getElementById('passengerCarChoice').value || null;
       const coords = await geocodeUKPostcode(pc, loc) || [51.3932 + (Math.random()-0.5)*0.02, -0.3038 + (Math.random()-0.5)*0.02];
 
       db.passengers.push({
@@ -949,13 +1154,13 @@
         postcode: pc,
         pickupLocation: loc,
         pickupCoords: coords,
-        assignedCarId: null
+        assignedCarId: preferredCarId
       });
 
       saveState();
       closeModal('requestModal');
       document.getElementById('requestForm').reset();
-      showToast('Request submitted');
+      showToast(preferredCarId ? 'Request submitted & assigned!' : 'Request submitted');
     };
 
     window.syncEnglandHockeyFixtures = function() {
@@ -986,8 +1191,6 @@
 
     // UI Helpers
     window.openOfferModal = function() { document.getElementById('offerModal').classList.remove('hidden'); };
-    window.openRequestModal = function() { document.getElementById('requestModal').classList.remove('hidden'); };
-    window.openSyncModal = function() { document.getElementById('syncModal').classList.remove('hidden'); };
     window.closeModal = function(id) { document.getElementById(id).classList.add('hidden'); };
     function formatDate(d) { if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; }
     function escapeHtml(s) { return (s||'').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
