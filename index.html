@@ -1,2259 +1,74 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en" class="h-full bg-slate-100">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Surbiton HC - Transport & Covoiturage</title>
+  <title>Surbiton HC - Away Carpool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            shc: {
+              green: '#004D25',
+              greenDark: '#003318',
+              magenta: '#D10056',
+              magentaDark: '#A30043',
+              gold: '#D4AF37'
+            }
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    :root {
-      --primary: #002f6c;
-      --secondary: #e30613;
-      --bg: #f4f6f9;
-      --card-bg: #ffffff;
-      --text: #333333;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-      margin: 0;
-      padding: 20px;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      color: var(--primary);
-      text-align: center;
-      margin-bottom: 25px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-
-    @media (max-width: 768px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    .card {
-      background: var(--card-bg);
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    .card h2 {
-      margin-top: 0;
-      color: var(--primary);
-      font-size: 1.25rem;
-      border-bottom: 2px solid var(--bg);
-      padding-bottom: 10px;
-    }
-
-    .form-group {
-      margin-bottom: 15px;
-    }
-
-    label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 5px;
-      font-size: 0.9rem;
-    }
-
-    input, select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
-      font-size: 0.95rem;
-    }
-
-    small {
-      display: block;
-      color: #666;
-      font-size: 0.78rem;
-      margin-top: 4px;
-    }
-
-    button {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      padding: 12px 18px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      width: 100%;
-      font-size: 0.95rem;
-      transition: background 0.2s;
-    }
-
-    button:hover {
-      background-color: #001f48;
-    }
-
-    /* Styles pour la liste des voitures et passagers */
-    .driver-item {
-      border: 1px solid #e1e4e8;
-      border-radius: 6px;
-      padding: 15px;
-      margin-bottom: 15px;
-      background: #fafbfc;
-    }
-
-    .driver-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .passenger-list {
-      margin-top: 10px;
-      padding-left: 0;
-      list-style: none;
-    }
-
-    .passenger-item {
-      background: #fff;
-      border: 1px solid #eaeaea;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-top: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    /* Style des boutons Contact */
-    .contact-actions {
-      display: inline-flex;
-      gap: 6px;
-    }
-
-    .btn-contact {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      text-decoration: none;
-      font-weight: 600;
-      color: white;
-    }
-
-    .btn-wa { background-color: #25D366; }
-    .btn-wa:hover { background-color: #1da851; }
-    .btn-sms { background-color: #007aff; }
-    .btn-sms:hover { background-color: #0056b3; }
-
-    .badge {
-      background-color: #e30613;
-      color: white;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body>
+<body class="h-full text-slate-800 flex flex-col antialiased bg-slate-100">
 
-<div class="container">
-  <h1>🏒 Surbiton HC - Gestion Covoiturage</h1>
-
-  <div class="grid">
-    <!-- Formulaire 1: Offrir un trajet -->
-    <div class="card">
-      <h2>🚘 Proposer un véhicule</h2>
-      <form id="offerForm">
-        <div class="form-group">
-          <label for="driverName">Nom complet :</label>
-          <input type="text" id="driverName" required placeholder="ex: Alex Smith">
+  <!-- Navigation Bar -->
+  <header class="bg-shc-green text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center p-1 text-shc-green shadow">
+          <i class="fa-solid fa-shield-halved text-2xl text-shc-green"></i>
         </div>
-        <div class="form-group">
-          <label for="driverPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="driverPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447123456789" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="seats">Places disponibles dans le véhicule :</label>
-          <input type="number" id="seats" min="1" max="8" value="3" required>
-        </div>
-        <button type="submit">Enregistrer le véhicule</button>
-      </form>
-    </div>
-
-    <!-- Formulaire 2: Demander un trajet -->
-    <div class="card">
-      <h2>🙋‍♂️ Demander un trajet</h2>
-      <form id="requestForm">
-        <div class="form-group">
-          <label for="passengerName">Nom complet :</label>
-          <input type="text" id="passengerName" required placeholder="ex: Sam Taylor">
-        </div>
-        <div class="form-group">
-          <label for="passengerPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="passengerPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447987654321" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="preferredDriver">Chauffeur / Véhicule préféré :</label>
-          <select id="preferredDriver">
-            <option value="">-- Pas de préférence (Liste d'attente) --</option>
-          </select>
-        </div>
-        <button type="submit">Envoyer ma demande</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Affichage du Dashboard -->
-  <div class="card">
-    <h2>📋 Répartition des Trajets</h2>
-    <div id="driversList"></div>
-    
-    <h3 style="margin-top:20px; color: var(--primary);">Passagers en attente d'attribution</h3>
-    <ul id="unassignedList" class="passenger-list"></ul>
-  </div>
-</div>
-
-<script>
-  // État de l'application
-  let drivers = [];
-  let unassignedPassengers = [];
-
-  // Fonction utilitaire pour nettoyer le téléphone pour WhatsApp
-  function formatPhoneForWhatsApp(phone) {
-    return phone.replace(/[^0-9]/g, '');
-  }
-
-  // Générateur HTML des boutons de contact
-  function renderContactButtons(phone, name) {
-    if (!phone) return '';
-    const cleanPhone = formatPhoneForWhatsApp(phone);
-    const encodedMsg = encodeURIComponent(`Salut ${name}, à propos du covoiturage Surbiton HC...`);
-    
-    return `
-      <span class="contact-actions">
-        <a class="btn-contact btn-wa" href="https://wa.me/${cleanPhone}?text=${encodedMsg}" target="_blank" title="Envoyer WhatsApp">
-          💬 WA
-        </a>
-        <a class="btn-contact btn-sms" href="sms:${phone}" title="Envoyer SMS">
-          📱 SMS
-        </a>
-      </span>
-    `;
-  }
-
-  // Mettre à jour la liste déroulante des chauffeurs
-  function updateDriverDropdown() {
-    const select = document.getElementById('preferredDriver');
-    select.innerHTML = '<option value="">-- Pas de préférence (Liste d\'attente) --</option>';
-    
-    drivers.forEach(driver => {
-      const remainingSeats = driver.seats - driver.passengers.length;
-      if (remainingSeats > 0) {
-        const option = document.createElement('option');
-        option.value = driver.id;
-        option.textContent = `${driver.name} (${remainingSeats} place(s) libre(s))`;
-        select.appendChild(option);
-      }
-    });
-  }
-
-  // Rendu global de l'interface
-  function render() {
-    const driversContainer = document.getElementById('driversList');
-    driversContainer.innerHTML = '';
-
-    if (drivers.length === 0) {
-      driversContainer.innerHTML = '<p style="color:#777;">Aucun véhicule proposé pour le moment.</p>';
-    } else {
-      drivers.forEach(driver => {
-        const remainingSeats = driver.seats - driver.passengers.length;
-        
-        let passengersHTML = '';
-        driver.passengers.forEach(p => {
-          passengersHTML += `
-            <li class="passenger-item">
-              <span>👤 ${p.name}</span>
-              ${renderContactButtons(p.phone, p.name)}
-            </li>
-          `;
-        });
-
-        const driverCard = document.createElement('div');
-        driverCard.className = 'driver-item';
-        driverCard.innerHTML = `
-          <div class="driver-header">
-            <div>
-              <strong>🚘 ${driver.name}</strong> 
-              ${renderContactButtons(driver.phone, driver.name)}
-            </div>
-            <span class="badge">${remainingSeats} / ${driver.seats} places libres</span>
+        <div>
+          <div class="font-bold text-base tracking-tight flex items-center gap-2">
+            Surbiton HC
+            <span class="text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-shc-magenta text-white">Div 6 South</span>
           </div>
-          <div><strong>Passagers inscrits :</strong></div>
-          <ul class="passenger-list">
-            ${passengersHTML || '<li style="color:#888; font-size:0.85rem; padding:4px;">Aucun passager pour l\'instant.</li>'}
-          </ul>
-        `;
-        driversContainer.appendChild(driverCard);
-      });
-    }
-
-    // Passagers en attente
-    const unassignedContainer = document.getElementById('unassignedList');
-    unassignedContainer.innerHTML = '';
-    
-    if (unassignedPassengers.length === 0) {
-      unassignedContainer.innerHTML = '<li style="color:#777; border:none;">Aucun passager en attente.</li>';
-    } else {
-      unassignedPassengers.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'passenger-item';
-        li.innerHTML = `
-          <span>👤 ${p.name}</span>
-          ${renderContactButtons(p.phone, p.name)}
-        `;
-        unassignedContainer.appendChild(li);
-      });
-    }
-
-    updateDriverDropdown();
-  }
-
-  // Gestion formulaire : Offrir un trajet
-  document.getElementById('offerForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('driverName').value;
-    const phone = document.getElementById('driverPhone').value;
-    const seats = parseInt(document.getElementById('seats').value);
-
-    drivers.push({
-      id: Date.now().toString(),
-      name: name,
-      phone: phone,
-      seats: seats,
-      passengers: []
-    });
-
-    this.reset();
-    render();
-  });
-
-  // Gestion formulaire : Demander un trajet
-  document.getElementById('requestForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('passengerName').value;
-    const phone = document.getElementById('passengerPhone').value;
-    const preferredDriverId = document.getElementById('preferredDriver').value;
-
-    const passengerData = { name, phone };
-
-    if (preferredDriverId) {
-      const driver = drivers.find(d => d.id === preferredDriverId);
-      if (driver && driver.passengers.length < driver.seats) {
-        driver.passengers.push(passengerData);
-      } else {
-        alert("Ce véhicule est complet. Vous êtes placé en liste d'attente.");
-        unassignedPassengers.push(passengerData);
-      }
-    } else {
-      unassignedPassengers.push(passengerData);
-    }
-
-    this.reset();
-    render();
-  });
-
-  // Initialisation
-  render();
-</script>
-
-</body>
-</html>
-    label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 5px;
-      font-size: 0.9rem;
-    }
-
-    input, select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
-      font-size: 0.95rem;
-    }
-
-    small {
-      display: block;
-      color: #666;
-      font-size: 0.78rem;
-      margin-top: 4px;
-    }
-
-    button {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      padding: 12px 18px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      width: 100%;
-      font-size: 0.95rem;
-      transition: background 0.2s;
-    }
-
-    button:hover {
-      background-color: #001f48;
-    }
-
-    /* Styles pour la liste des voitures et passagers */
-    .driver-item {
-      border: 1px solid #e1e4e8;
-      border-radius: 6px;
-      padding: 15px;
-      margin-bottom: 15px;
-      background: #fafbfc;
-    }
-
-    .driver-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .passenger-list {
-      margin-top: 10px;
-      padding-left: 0;
-      list-style: none;
-    }
-
-    .passenger-item {
-      background: #fff;
-      border: 1px solid #eaeaea;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-top: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    /* Style des boutons Contact */
-    .contact-actions {
-      display: inline-flex;
-      gap: 6px;
-    }
-
-    .btn-contact {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      text-decoration: none;
-      font-weight: 600;
-      color: white;
-    }
-
-    .btn-wa { background-color: #25D366; }
-    .btn-wa:hover { background-color: #1da851; }
-    .btn-sms { background-color: #007aff; }
-    .btn-sms:hover { background-color: #0056b3; }
-
-    .badge {
-      background-color: #e30613;
-      color: white;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-    }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h1>🏒 Surbiton HC - Gestion Covoiturage</h1>
-
-  <div class="grid">
-    <!-- Formulaire 1: Offrir un trajet -->
-    <div class="card">
-      <h2>🚘 Proposer un véhicule</h2>
-      <form id="offerForm">
-        <div class="form-group">
-          <label for="driverName">Nom complet :</label>
-          <input type="text" id="driverName" required placeholder="ex: Alex Smith">
+          <p class="text-[11px] text-emerald-100 flex items-center gap-1.5">
+            <span id="syncIndicator" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="syncText">Connecting live...</span>
+          </p>
         </div>
-        <div class="form-group">
-          <label for="driverPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="driverPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447123456789" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="seats">Places disponibles dans le véhicule :</label>
-          <input type="number" id="seats" min="1" max="8" value="3" required>
-        </div>
-        <button type="submit">Enregistrer le véhicule</button>
-      </form>
-    </div>
-
-    <!-- Formulaire 2: Demander un trajet -->
-    <div class="card">
-      <h2>🙋‍♂️ Demander un trajet</h2>
-      <form id="requestForm">
-        <div class="form-group">
-          <label for="passengerName">Nom complet :</label>
-          <input type="text" id="passengerName" required placeholder="ex: Sam Taylor">
-        </div>
-        <div class="form-group">
-          <label for="passengerPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="passengerPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447987654321" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="preferredDriver">Chauffeur / Véhicule préféré :</label>
-          <select id="preferredDriver">
-            <option value="">-- Pas de préférence (Liste d'attente) --</option>
-          </select>
-        </div>
-        <button type="submit">Envoyer ma demande</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Affichage du Dashboard -->
-  <div class="card">
-    <h2>📋 Répartition des Trajets</h2>
-    <div id="driversList"></div>
-    
-    <h3 style="margin-top:20px; color: var(--primary);">Passagers en attente d'attribution</h3>
-    <ul id="unassignedList" class="passenger-list"></ul>
-  </div>
-</div>
-
-<script>
-  // État de l'application
-  let drivers = [];
-  let unassignedPassengers = [];
-
-  // Fonction utilitaire pour nettoyer le téléphone pour WhatsApp
-  function formatPhoneForWhatsApp(phone) {
-    return phone.replace(/[^0-9]/g, '');
-  }
-
-  // Générateur HTML des boutons de contact
-  function renderContactButtons(phone, name) {
-    if (!phone) return '';
-    const cleanPhone = formatPhoneForWhatsApp(phone);
-    const encodedMsg = encodeURIComponent(`Salut ${name}, à propos du covoiturage Surbiton HC...`);
-    
-    return `
-      <span class="contact-actions">
-        <a class="btn-contact btn-wa" href="https://wa.me/${cleanPhone}?text=${encodedMsg}" target="_blank" title="Envoyer WhatsApp">
-          💬 WA
-        </a>
-        <a class="btn-contact btn-sms" href="sms:${phone}" title="Envoyer SMS">
-          📱 SMS
-        </a>
-      </span>
-    `;
-  }
-
-  // Mettre à jour la liste déroulante des chauffeurs
-  function updateDriverDropdown() {
-    const select = document.getElementById('preferredDriver');
-    select.innerHTML = '<option value="">-- Pas de préférence (Liste d\'attente) --</option>';
-    
-    drivers.forEach(driver => {
-      const remainingSeats = driver.seats - driver.passengers.length;
-      if (remainingSeats > 0) {
-        const option = document.createElement('option');
-        option.value = driver.id;
-        option.textContent = `${driver.name} (${remainingSeats} place(s) libre(s))`;
-        select.appendChild(option);
-      }
-    });
-  }
-
-  // Rendu global de l'interface
-  function render() {
-    const driversContainer = document.getElementById('driversList');
-    driversContainer.innerHTML = '';
-
-    if (drivers.length === 0) {
-      driversContainer.innerHTML = '<p style="color:#777;">Aucun véhicule proposé pour le moment.</p>';
-    } else {
-      drivers.forEach(driver => {
-        const remainingSeats = driver.seats - driver.passengers.length;
-        
-        let passengersHTML = '';
-        driver.passengers.forEach(p => {
-          passengersHTML += `
-            <li class="passenger-item">
-              <span>👤 ${p.name}</span>
-              ${renderContactButtons(p.phone, p.name)}
-            </li>
-          `;
-        });
-
-        const driverCard = document.createElement('div');
-        driverCard.className = 'driver-item';
-        driverCard.innerHTML = `
-          <div class="driver-header">
-            <div>
-              <strong>🚘 ${driver.name}</strong> 
-              ${renderContactButtons(driver.phone, driver.name)}
-            </div>
-            <span class="badge">${remainingSeats} / ${driver.seats} places libres</span>
-          </div>
-          <div><strong>Passagers inscrits :</strong></div>
-          <ul class="passenger-list">
-            ${passengersHTML || '<li style="color:#888; font-size:0.85rem; padding:4px;">Aucun passager pour l\'instant.</li>'}
-          </ul>
-        `;
-        driversContainer.appendChild(driverCard);
-      });
-    }
-
-    // Passagers en attente
-    const unassignedContainer = document.getElementById('unassignedList');
-    unassignedContainer.innerHTML = '';
-    
-    if (unassignedPassengers.length === 0) {
-      unassignedContainer.innerHTML = '<li style="color:#777; border:none;">Aucun passager en attente.</li>';
-    } else {
-      unassignedPassengers.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'passenger-item';
-        li.innerHTML = `
-          <span>👤 ${p.name}</span>
-          ${renderContactButtons(p.phone, p.name)}
-        `;
-        unassignedContainer.appendChild(li);
-      });
-    }
-
-    updateDriverDropdown();
-  }
-
-  // Gestion formulaire : Offrir un trajet
-  document.getElementById('offerForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('driverName').value;
-    const phone = document.getElementById('driverPhone').value;
-    const seats = parseInt(document.getElementById('seats').value);
-
-    drivers.push({
-      id: Date.now().toString(),
-      name: name,
-      phone: phone,
-      seats: seats,
-      passengers: []
-    });
-
-    this.reset();
-    render();
-  });
-
-  // Gestion formulaire : Demander un trajet
-  document.getElementById('requestForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('passengerName').value;
-    const phone = document.getElementById('passengerPhone').value;
-    const preferredDriverId = document.getElementById('preferredDriver').value;
-
-    const passengerData = { name, phone };
-
-    if (preferredDriverId) {
-      const driver = drivers.find(d => d.id === preferredDriverId);
-      if (driver && driver.passengers.length < driver.seats) {
-        driver.passengers.push(passengerData);
-      } else {
-        alert("Ce véhicule est complet. Vous êtes placé en liste d'attente.");
-        unassignedPassengers.push(passengerData);
-      }
-    } else {
-      unassignedPassengers.push(passengerData);
-    }
-
-    this.reset();
-    render();
-  });
-
-  // Initialisation
-  render();
-</script>
-
-</body>
-</html>      display: block;
-      font-weight: 600;
-      margin-bottom: 5px;
-      font-size: 0.9rem;
-    }
-
-    input, select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
-      font-size: 0.95rem;
-    }
-
-    small {
-      display: block;
-      color: #666;
-      font-size: 0.78rem;
-      margin-top: 4px;
-    }
-
-    button {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      padding: 12px 18px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      width: 100%;
-      font-size: 0.95rem;
-      transition: background 0.2s;
-    }
-
-    button:hover {
-      background-color: #001f48;
-    }
-
-    /* Styles pour la liste des voitures et passagers */
-    .driver-item {
-      border: 1px solid #e1e4e8;
-      border-radius: 6px;
-      padding: 15px;
-      margin-bottom: 15px;
-      background: #fafbfc;
-    }
-
-    .driver-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .passenger-list {
-      margin-top: 10px;
-      padding-left: 0;
-      list-style: none;
-    }
-
-    .passenger-item {
-      background: #fff;
-      border: 1px solid #eaeaea;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-top: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    /* Style des boutons Contact */
-    .contact-actions {
-      display: inline-flex;
-      gap: 6px;
-    }
-
-    .btn-contact {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      text-decoration: none;
-      font-weight: 600;
-      color: white;
-    }
-
-    .btn-wa { background-color: #25D366; }
-    .btn-wa:hover { background-color: #1da851; }
-    .btn-sms { background-color: #007aff; }
-    .btn-sms:hover { background-color: #0056b3; }
-
-    .badge {
-      background-color: #e30613;
-      color: white;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-    }
-
-    /* =========================================================
-       OPTIMISATIONS SPÉCIFIQUES SMARTPHONE (Max-width: 768px)
-       ========================================================= */
-    @media (max-width: 768px) {
-      body {
-        padding: 12px;
-      }
-
-      h1 {
-        font-size: 1.35rem;
-        margin-bottom: 15px;
-      }
-
-      .grid {
-        grid-template-columns: 1fr;
-        gap: 15px;
-        margin-bottom: 20px;
-      }
-
-      .card {
-        padding: 15px;
-      }
-
-      .card h2 {
-        font-size: 1.1rem;
-      }
-
-      input, select {
-        padding: 12px 10px;
-        font-size: 16px; /* Évite le zoom automatique iOS */
-      }
-
-      button {
-        padding: 14px;
-        font-size: 1rem;
-      }
-
-      .driver-item {
-        padding: 12px;
-        margin-bottom: 12px;
-      }
-
-      .driver-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-      }
-
-      .driver-header > div {
-        display: flex;
-        width: 100%;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .passenger-item {
-        padding: 10px;
-      }
-
-      .btn-contact {
-        padding: 6px 10px;
-        font-size: 0.85rem;
-      }
-    }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h1>🏒 Surbiton HC - Gestion Covoiturage</h1>
-
-  <div class="grid">
-    <!-- Formulaire 1: Offrir un trajet -->
-    <div class="card">
-      <h2>🚘 Proposer un véhicule</h2>
-      <form id="offerForm">
-        <div class="form-group">
-          <label for="driverName">Nom complet :</label>
-          <input type="text" id="driverName" required placeholder="ex: Alex Smith">
-        </div>
-        <div class="form-group">
-          <label for="driverPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="driverPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447123456789" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="seats">Places disponibles dans le véhicule :</label>
-          <input type="number" id="seats" min="1" max="8" value="3" required>
-        </div>
-        <button type="submit">Enregistrer le véhicule</button>
-      </form>
-    </div>
-
-    <!-- Formulaire 2: Demander un trajet -->
-    <div class="card">
-      <h2>🙋‍♂️ Demander un trajet</h2>
-      <form id="requestForm">
-        <div class="form-group">
-          <label for="passengerName">Nom complet :</label>
-          <input type="text" id="passengerName" required placeholder="ex: Sam Taylor">
-        </div>
-        <div class="form-group">
-          <label for="passengerPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="passengerPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447987654321" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="preferredDriver">Chauffeur / Véhicule préféré :</label>
-          <select id="preferredDriver">
-            <option value="">-- Pas de préférence (Liste d'attente) --</option>
-          </select>
-        </div>
-        <button type="submit">Envoyer ma demande</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Affichage du Dashboard -->
-  <div class="card">
-    <h2>📋 Répartition des Trajets</h2>
-    <div id="driversList"></div>
-    
-    <h3 style="margin-top:20px; color: var(--primary);">Passagers en attente d'attribution</h3>
-    <ul id="unassignedList" class="passenger-list"></ul>
-  </div>
-</div>
-
-<script>
-  // État de l'application
-  let drivers = [];
-  let unassignedPassengers = [];
-
-  // Fonction utilitaire pour nettoyer le téléphone pour WhatsApp
-  function formatPhoneForWhatsApp(phone) {
-    return phone.replace(/[^0-9]/g, '');
-  }
-
-  // Générateur HTML des boutons de contact
-  function renderContactButtons(phone, name) {
-    if (!phone) return '';
-    const cleanPhone = formatPhoneForWhatsApp(phone);
-    const encodedMsg = encodeURIComponent(`Salut ${name}, à propos du covoiturage Surbiton HC...`);
-    
-    return `
-      <span class="contact-actions">
-        <a class="btn-contact btn-wa" href="https://wa.me/${cleanPhone}?text=${encodedMsg}" target="_blank" title="Envoyer WhatsApp">
-          💬 WA
-        </a>
-        <a class="btn-contact btn-sms" href="sms:${phone}" title="Envoyer SMS">
-          📱 SMS
-        </a>
-      </span>
-    `;
-  }
-
-  // Mettre à jour la liste déroulante des chauffeurs
-  function updateDriverDropdown() {
-    const select = document.getElementById('preferredDriver');
-    select.innerHTML = '<option value="">-- Pas de préférence (Liste d\'attente) --</option>';
-    
-    drivers.forEach(driver => {
-      const remainingSeats = driver.seats - driver.passengers.length;
-      if (remainingSeats > 0) {
-        const option = document.createElement('option');
-        option.value = driver.id;
-        option.textContent = `${driver.name} (${remainingSeats} place(s) libre(s))`;
-        select.appendChild(option);
-      }
-    });
-  }
-
-  // Rendu global de l'interface
-  function render() {
-    const driversContainer = document.getElementById('driversList');
-    driversContainer.innerHTML = '';
-
-    if (drivers.length === 0) {
-      driversContainer.innerHTML = '<p style="color:#777;">Aucun véhicule proposé pour le moment.</p>';
-    } else {
-      drivers.forEach(driver => {
-        const remainingSeats = driver.seats - driver.passengers.length;
-        
-        let passengersHTML = '';
-        driver.passengers.forEach(p => {
-          passengersHTML += `
-            <li class="passenger-item">
-              <span>👤 ${p.name}</span>
-              ${renderContactButtons(p.phone, p.name)}
-            </li>
-          `;
-        });
-
-        const driverCard = document.createElement('div');
-        driverCard.className = 'driver-item';
-        driverCard.innerHTML = `
-          <div class="driver-header">
-            <div>
-              <strong>🚘 ${driver.name}</strong> 
-              ${renderContactButtons(driver.phone, driver.name)}
-            </div>
-            <span class="badge">${remainingSeats} / ${driver.seats} places libres</span>
-          </div>
-          <div><strong>Passagers inscrits :</strong></div>
-          <ul class="passenger-list">
-            ${passengersHTML || '<li style="color:#888; font-size:0.85rem; padding:4px;">Aucun passager pour l\'instant.</li>'}
-          </ul>
-        `;
-        driversContainer.appendChild(driverCard);
-      });
-    }
-
-    // Passagers en attente
-    const unassignedContainer = document.getElementById('unassignedList');
-    unassignedContainer.innerHTML = '';
-    
-    if (unassignedPassengers.length === 0) {
-      unassignedContainer.innerHTML = '<li style="color:#777; border:none;">Aucun passager en attente.</li>';
-    } else {
-      unassignedPassengers.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'passenger-item';
-        li.innerHTML = `
-          <span>👤 ${p.name}</span>
-          ${renderContactButtons(p.phone, p.name)}
-        `;
-        unassignedContainer.appendChild(li);
-      });
-    }
-
-    updateDriverDropdown();
-  }
-
-  // Gestion formulaire : Offrir un trajet
-  document.getElementById('offerForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('driverName').value;
-    const phone = document.getElementById('driverPhone').value;
-    const seats = parseInt(document.getElementById('seats').value);
-
-    drivers.push({
-      id: Date.now().toString(),
-      name: name,
-      phone: phone,
-      seats: seats,
-      passengers: []
-    });
-
-    this.reset();
-    render();
-  });
-
-  // Gestion formulaire : Demander un trajet
-  document.getElementById('requestForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('passengerName').value;
-    const phone = document.getElementById('passengerPhone').value;
-    const preferredDriverId = document.getElementById('preferredDriver').value;
-
-    const passengerData = { name, phone };
-
-    if (preferredDriverId) {
-      const driver = drivers.find(d => d.id === preferredDriverId);
-      if (driver && driver.passengers.length < driver.seats) {
-        driver.passengers.push(passengerData);
-      } else {
-        alert("Ce véhicule est complet. Vous êtes placé en liste d'attente.");
-        unassignedPassengers.push(passengerData);
-      }
-    } else {
-      unassignedPassengers.push(passengerData);
-    }
-
-    this.reset();
-    render();
-  });
-
-  // Initialisation
-  render();
-</script>
-
-</body>
-</html>    .btn-wa { background-color: var(--wa-color); }
-    .btn-sms { background-color: var(--sms-color); }
-
-    /* =========================================================
-       1. AFFICHAGE DESKTOP (PC / TABLETTE - Style d'origine)
-       ========================================================= */
-    @media (min-width: 769px) {
-      .mobile-only { display: none !important; }
-
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-        margin-bottom: 30px;
-      }
-
-      .card {
-        background: var(--card-bg);
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      }
-
-      .card h2 {
-        margin-top: 0;
-        color: var(--primary);
-        font-size: 1.25rem;
-        border-bottom: 2px solid var(--bg);
-        padding-bottom: 10px;
-      }
-
-      .form-group { margin-bottom: 15px; }
-      label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
-      input, select {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        font-size: 0.95rem;
-      }
-      small { display: block; color: #666; font-size: 0.78rem; margin-top: 4px; }
-
-      button.btn-desktop {
-        background-color: var(--primary);
-        color: white;
-        border: none;
-        padding: 12px 18px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: bold;
-        width: 100%;
-        font-size: 0.95rem;
-      }
-
-      .driver-item {
-        border: 1px solid #e1e4e8;
-        border-radius: 6px;
-        padding: 15px;
-        margin-bottom: 15px;
-        background: #fafbfc;
-      }
-      .driver-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-      .passenger-list { margin-top: 10px; padding-left: 0; list-style: none; }
-      .passenger-item {
-        background: #fff;
-        border: 1px solid #eaeaea;
-        padding: 8px 12px;
-        border-radius: 4px;
-        margin-top: 5px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .badge { background-color: var(--secondary); color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; }
-    }
-
-    /* =========================================================
-       2. AFFICHAGE MOBILE (Optimisé Accordéon / Matchs)
-       ========================================================= */
-    @media (max-width: 768px) {
-      body { padding: 10px; }
-      .desktop-only { display: none !important; }
-
-      .match-card {
-        background: var(--card-bg);
-        border-radius: 10px;
-        margin-bottom: 12px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        overflow: hidden;
-        border: 1px solid #e1e4e8;
-      }
-
-      .match-header {
-        padding: 14px;
-        background: #fff;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .match-title { font-weight: 700; font-size: 0.95rem; color: var(--primary); }
-      .match-info { font-size: 0.78rem; color: #666; margin-top: 2px; }
-
-      .match-body {
-        display: none;
-        padding: 12px;
-        border-top: 1px solid #eee;
-        background: #fafbfc;
-      }
-      .match-card.active .match-body { display: block; }
-
-      .action-buttons {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        margin-bottom: 12px;
-      }
-
-      .btn-mob {
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        font-weight: 700;
-        font-size: 0.8rem;
-        cursor: pointer;
-      }
-      .btn-offer-mob { background-color: var(--primary); color: white; }
-      .btn-req-mob { background-color: #e4e6eb; color: var(--text); }
-
-      .mob-form {
-        display: none;
-        background: white;
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid #ddd;
-        margin-bottom: 12px;
-      }
-      .mob-form.active { display: block; }
-      .mob-form h4 { margin: 0 0 10px 0; font-size: 0.9rem; color: var(--primary); }
-      .mob-form .form-group { margin-bottom: 8px; }
-      .mob-form label { font-size: 0.78rem; font-weight: 600; }
-      .mob-form input, .mob-form select { padding: 8px; font-size: 0.85rem; }
-
-      .mob-driver-card {
-        background: #fff;
-        border-radius: 6px;
-        padding: 10px;
-        margin-bottom: 8px;
-        border: 1px solid #eaeaea;
-      }
-      .mob-driver-head { display: flex; justify-content: space-between; align-items: center; }
-      .badge-seats { background: #e7f3ff; color: var(--primary); font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
-    }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h1>🏒 Surbiton HC - Covoiturage</h1>
-
-  <!-- ================= VUE DESKTOP ================= -->
-  <div class="desktop-only">
-    <div class="grid">
-      <div class="card">
-        <h2>🚘 Proposer un véhicule</h2>
-        <form id="deskOfferForm">
-          <div class="form-group">
-            <label>Nom complet :</label>
-            <input type="text" id="dOffName" required placeholder="ex: Alex Smith">
-          </div>
-          <div class="form-group">
-            <label>Numéro WhatsApp / Mobile :</label>
-            <input type="tel" id="dOffPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447123456789" required>
-            <small>Format international requis (ex: +44...)</small>
-          </div>
-          <div class="form-group">
-            <label>Places disponibles :</label>
-            <input type="number" id="dOffSeats" min="1" max="8" value="3" required>
-          </div>
-          <button type="submit" class="btn-desktop">Enregistrer le véhicule</button>
-        </form>
       </div>
 
-      <div class="card">
-        <h2>🙋‍♂️ Demander un trajet</h2>
-        <form id="deskReqForm">
-          <div class="form-group">
-            <label>Nom complet :</label>
-            <input type="text" id="dReqName" required placeholder="ex: Sam Taylor">
-          </div>
-          <div class="form-group">
-            <label>Numéro WhatsApp / Mobile :</label>
-            <input type="tel" id="dReqPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447987654321" required>
-            <small>Format international requis (ex: +44...)</small>
-          </div>
-          <div class="form-group">
-            <label>Chauffeur / Véhicule préféré :</label>
-            <select id="dReqDriver">
-              <option value="">-- Pas de préférence (Liste d'attente) --</option>
-            </select>
-          </div>
-          <button type="submit" class="btn-desktop">Envoyer ma demande</button>
-        </form>
+      <div class="flex items-center space-x-2">
+        <!-- Captain Mode Toggle Button -->
+        <button id="captainToggleBtn" onclick="toggleCaptainMode()" class="px-3 py-1.5 rounded-lg border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition flex items-center gap-1.5">
+          <i id="captainIcon" class="fa-solid fa-user-lock"></i> <span id="captainLabel">Captain Mode</span>
+        </button>
+
+        <!-- Sync Button (Captain only) -->
+        <button id="btnSyncFixtures" onclick="openSyncModal()" class="hidden px-3 py-1.5 rounded-lg border border-emerald-600 bg-shc-greenDark hover:bg-emerald-900 text-white text-xs font-medium transition flex items-center gap-2">
+          <i class="fa-solid fa-rotate text-emerald-300"></i> <span class="hidden sm:inline">Sync Fixtures</span>
+        </button>
+        
+        <button onclick="copyShareLink()" class="px-3 py-1.5 rounded-lg bg-shc-magenta hover:bg-shc-magentaDark text-white text-xs font-semibold transition flex items-center gap-2 shadow-sm">
+          <i class="fa-brands fa-whatsapp text-sm"></i> <span class="hidden sm:inline">Share Match</span>
+        </button>
       </div>
     </div>
-
-    <div class="card">
-      <h2>📋 Répartition des Trajets</h2>
-      <div id="deskDriversList"></div>
-      <h3 style="margin-top:20px; color: var(--primary);">Passagers en attente</h3>
-      <ul id="deskUnassignedList" class="passenger-list"></ul>
-    </div>
-  </div>
-
-  <!-- ================= VUE MOBILE ================= -->
-  <div class="mobile-only">
-    <div id="mobileMatchesContainer"></div>
-  </div>
-</div>
-
-<script>
-  // Données centralisées (3 matchs programmés)
-  const matches = [
-    {
-      id: "m1",
-      opponent: "Wimbledon HC (Extérieur)",
-      date: "Samedi 10 Oct - 14:00",
-      location: "Raynes Park",
-      drivers: [],
-      unassigned: []
-    },
-    {
-      id: "m2",
-      opponent: "Hampstead & Westminster",
-      date: "Samedi 17 Oct - 15:30",
-      location: "Paddington Rec",
-      drivers: [],
-      unassigned: []
-    }
-  ];
-
-  // Helpers
-  function formatWhatsApp(phone) { return phone.replace(/[^0-9]/g, ''); }
-  function renderContacts(phone, name) {
-    if (!phone) return '';
-    const wa = formatWhatsApp(phone);
-    const msg = encodeURIComponent(`Salut ${name}, à propos du covoiturage Surbiton HC...`);
-    return `
-      <span class="contact-actions">
-        <a class="btn-contact btn-wa" href="https://wa.me/${wa}?text=${msg}" target="_blank">💬 WA</a>
-        <a class="btn-contact btn-sms" href="sms:${phone}">📱 SMS</a>
-      </span>
-    `;
-  }
-
-  // ================= LOGIQUE DESKTOP =================
-  function renderDesktop() {
-    const activeMatch = matches[0]; // Match en cours sur Desktop
-    const driversList = document.getElementById('deskDriversList');
-    const unassignedList = document.getElementById('deskUnassignedList');
-    const select = document.getElementById('dReqDriver');
-
-    driversList.innerHTML = '';
-    select.innerHTML = '<option value="">-- Pas de préférence (Liste d\'attente) --</option>';
-
-    if (activeMatch.drivers.length === 0) {
-      driversList.innerHTML = '<p style="color:#777;">Aucun véhicule proposé.</p>';
-    } else {
-      activeMatch.drivers.forEach(d => {
-        const free = d.seats - d.passengers.length;
-        if (free > 0) {
-          select.innerHTML += `<option value="${d.id}">${d.name} (${free} place(s) libre(s))</option>`;
-        }
-        let passHTML = d.passengers.map(p => `
-          <li class="passenger-item">
-            <span>👤 ${p.name}</span>
-            ${renderContacts(p.phone, p.name)}
-          </li>
-        `).join('');
-
-        driversList.innerHTML += `
-          <div class="driver-item">
-            <div class="driver-header">
-              <div><strong>🚘 ${d.name}</strong> ${renderContacts(d.phone, d.name)}</div>
-              <span class="badge">${free} / ${d.seats} places libres</span>
-            </div>
-            <div><strong>Passagers :</strong></div>
-            <ul class="passenger-list">${passHTML || '<li style="color:#888;font-size:0.85rem;padding:4px;">Aucun passager</li>'}</ul>
-          </div>
-        `;
-      });
-    }
-
-    unassignedList.innerHTML = activeMatch.unassigned.map(p => `
-      <li class="passenger-item">
-        <span>👤 ${p.name}</span>
-        ${renderContacts(p.phone, p.name)}
-      </li>
-    `).join('') || '<li style="color:#777;">Aucun passager en attente.</li>';
-  }
-
-  document.getElementById('deskOfferForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    matches[0].drivers.push({
-      id: Date.now().toString(),
-      name: document.getElementById('dOffName').value,
-      phone: document.getElementById('dOffPhone').value,
-      seats: parseInt(document.getElementById('dOffSeats').value),
-      passengers: []
-    });
-    this.reset();
-    renderAll();
-  });
-
-  document.getElementById('deskReqForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('dReqName').value;
-    const phone = document.getElementById('dReqPhone').value;
-    const driverId = document.getElementById('dReqDriver').value;
-    const p = { name, phone };
-
-    if (driverId) {
-      const d = matches[0].drivers.find(x => x.id === driverId);
-      if (d && d.passengers.length < d.seats) d.passengers.push(p);
-      else matches[0].unassigned.push(p);
-    } else {
-      matches[0].unassigned.push(p);
-    }
-    this.reset();
-    renderAll();
-  });
-
-  // ================= LOGIQUE MOBILE =================
-  function renderMobile() {
-    const container = document.getElementById('mobileMatchesContainer');
-    container.innerHTML = '';
-
-    matches.forEach((m, idx) => {
-      let driverOpts = '<option value="">-- Pas de préférence --</option>';
-      let driversHTML = '';
-
-      m.drivers.forEach(d => {
-        const free = d.seats - d.passengers.length;
-        if (free > 0) driverOpts += `<option value="${d.id}">${d.name} (${free} pl.)</option>`;
-        
-        let pHTML = d.passengers.map(p => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:0.8rem;">
-            <span>👤 ${p.name}</span>
-            ${renderContacts(p.phone, p.name)}
-          </div>
-        `).join('');
-
-        driversHTML += `
-          <div class="mob-driver-card">
-            <div class="mob-driver-head">
-              <div><strong>🚘 ${d.name}</strong> <span class="badge-seats">${free} pl. libres</span></div>
-              ${renderContacts(d.phone, d.name)}
-            </div>
-            ${pHTML ? `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #eee;">${pHTML}</div>` : ''}
-          </div>
-        `;
-      });
-
-      let unassignedHTML = m.unassigned.map(p => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:0.8rem;">
-          <span>👤 ${p.name}</span>
-          ${renderContacts(p.phone, p.name)}
-        </div>
-      `).join('');
-
-      const card = document.createElement('div');
-      card.className = `match-card ${idx === 0 ? 'active' : ''}`;
-      card.innerHTML = `
-        <div class="match-header" onclick="this.parentElement.classList.toggle('active')">
-          <div>
-            <div class="match-title">${m.opponent}</div>
-            <div class="match-info">📅 ${m.date} | 📍 ${m.location}</div>
-          </div>
-          <span style="font-size:0.8rem;">▼</span>
-        </div>
-        <div class="match-body">
-          <div class="action-buttons">
-            <button class="btn-mob btn-offer-mob" onclick="toggleMobForm('${m.id}', 'off')">🚘 Proposer place</button>
-            <button class="btn-mob btn-req-mob" onclick="toggleMobForm('${m.id}', 'req')">🙋‍♂️ Demander place</button>
-          </div>
-
-          <div class="mob-form" id="mOff-${m.id}">
-            <h4>Proposer un véhicule</h4>
-            <form onsubmit="handleMobOffer(event, '${m.id}')">
-              <div class="form-group"><label>Nom :</label><input type="text" id="mOffN-${m.id}" required></div>
-              <div class="form-group"><label>Tél (+44...) :</label><input type="tel" pattern="^\\+[1-9]\\d{1,14}$" placeholder="+44..." id="mOffP-${m.id}" required></div>
-              <div class="form-group"><label>Places :</label><input type="number" min="1" max="8" value="3" id="mOffS-${m.id}" required></div>
-              <button class="btn-mob btn-offer-mob" style="width:100%;margin-top:5px;">Valider</button>
-            </form>
-          </div>
-
-          <div class="mob-form" id="mReq-${m.id}">
-            <h4>Demander un trajet</h4>
-            <form onsubmit="handleMobReq(event, '${m.id}')">
-              <div class="form-group"><label>Nom :</label><input type="text" id="mReqN-${m.id}" required></div>
-              <div class="form-group"><label>Tél (+44...) :</label><input type="tel" pattern="^\\+[1-9]\\d{1,14}$" placeholder="+44..." id="mReqP-${m.id}" required></div>
-              <div class="form-group"><label>Chauffeur :</label><select id="mReqD-${m.id}">${driverOpts}</select></div>
-              <button class="btn-mob btn-offer-mob" style="width:100%;margin-top:5px;">Valider</button>
-            </form>
-          </div>
-
-          <div class="section-title">Véhicules</div>
-          ${driversHTML || '<div style="font-size:0.8rem;color:#888;">Aucun véhicule disponible.</div>'}
-
-          ${unassignedHTML ? `<div class="section-title">En recherche de voiture</div><div class="mob-driver-card">${unassignedHTML}</div>` : ''}
-        </div>
-      `;
-      container.appendChild(card);
-    });
-  }
-
-  function toggleMobForm(id, type) {
-    const off = document.getElementById(`mOff-${id}`);
-    const req = document.getElementById(`mReq-${id}`);
-    if (type === 'off') { off.classList.toggle('active'); req.classList.remove('active'); }
-    else { req.classList.toggle('active'); off.classList.remove('active'); }
-  }
-
-  function handleMobOffer(e, matchId) {
-    e.preventDefault();
-    const m = matches.find(x => x.id === matchId);
-    m.drivers.push({
-      id: Date.now().toString(),
-      name: document.getElementById(`mOffN-${matchId}`).value,
-      phone: document.getElementById(`mOffP-${matchId}`).value,
-      seats: parseInt(document.getElementById(`mOffS-${matchId}`).value),
-      passengers: []
-    });
-    renderAll();
-  }
-
-  function handleMobReq(e, matchId) {
-    e.preventDefault();
-    const m = matches.find(x => x.id === matchId);
-    const p = {
-      name: document.getElementById(`mReqN-${matchId}`).value,
-      phone: document.getElementById(`mReqP-${matchId}`).value
-    };
-    const dId = document.getElementById(`mReqD-${matchId}`).value;
-
-    if (dId) {
-      const d = m.drivers.find(x => x.id === dId);
-      if (d && d.passengers.length < d.seats) d.passengers.push(p);
-      else m.unassigned.push(p);
-    } else {
-      m.unassigned.push(p);
-    }
-    renderAll();
-  }
-
-  function renderAll() {
-    renderDesktop();
-    renderMobile();
-  }
-
-  renderAll();
-</script>
-
-</body>
-</html>      color: var(--primary);
-    }
-    .match-info {
-      font-size: 0.8rem;
-      color: #65676b;
-      margin-top: 2px;
-    }
-
-    .match-body {
-      display: none;
-      padding: 14px 16px;
-      border-top: 1px solid #e4e6eb;
-      background: #fafafa;
-    }
-    .match-card.active .match-body { display: block; }
-    .match-card.active .arrow { transform: rotate(180deg); }
-
-    .arrow {
-      transition: transform 0.2s;
-      font-size: 0.8rem;
-      color: #65676b;
-    }
-
-    /* Actions Rapides */
-    .action-buttons {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 15px;
-    }
-
-    .btn-action {
-      padding: 10px;
-      border-radius: 8px;
-      border: none;
-      font-weight: 600;
-      font-size: 0.85rem;
-      cursor: pointer;
-      text-align: center;
-    }
-    .btn-offer { background-color: var(--primary); color: white; }
-    .btn-request { background-color: #e4e6eb; color: var(--text); }
-
-    /* Formulaires encastrés */
-    .form-box {
-      display: none;
-      background: #fff;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      margin-bottom: 15px;
-    }
-    .form-box.active { display: block; }
-    .form-box h4 { margin: 0 0 10px 0; font-size: 0.95rem; color: var(--primary); }
-
-    .form-group { margin-bottom: 10px; }
-    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
-    .form-group input, .form-group select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 0.9rem;
-    }
-
-    .btn-submit {
-      width: 100%;
-      padding: 10px;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-weight: bold;
-      font-size: 0.9rem;
-    }
-
-    /* Section Véhicules & Passagers */
-    .section-title {
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #65676b;
-      font-weight: 700;
-      margin: 12px 0 6px 0;
-    }
-
-    .driver-card {
-      background: #fff;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-      border: 1px solid #e4e6eb;
-    }
-    .driver-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .driver-name { font-weight: 600; font-size: 0.9rem; }
-    
-    .contact-links {
-      display: inline-flex;
-      gap: 6px;
-    }
-    .btn-contact {
-      padding: 4px 8px;
-      border-radius: 4px;
-      text-decoration: none;
-      font-size: 0.75rem;
-      font-weight: bold;
-      color: white;
-    }
-    .btn-wa { background-color: var(--wa-color); }
-    .btn-sms { background-color: var(--sms-color); }
-
-    .badge-seats {
-      background: #e7f3ff;
-      color: var(--primary);
-      font-size: 0.75rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: 600;
-    }
-
-    .passenger-mini-list {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px dashed #eee;
-    }
-    .passenger-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.85rem;
-      padding: 3px 0;
-    }
-  </style>
-</head>
-<body>
-
-<div class="app-header">
-  <h1>🏒 Surbiton HC</h1>
-  <p>Sélectionnez votre match pour le covoiturage</p>
-</div>
-
-<div id="matchesContainer"></div>
-
-<script>
-  // Données des matchs (en production, issues de votre base de données)
-  const matchesData = [
-    {
-      id: "m1",
-      opponent: "Wimbledon HC (Extérieur)",
-      date: "Samedi 10 Oct - 14:00",
-      location: "Raynes Park",
-      drivers: [
-        {
-          id: "d1",
-          name: "Marc L.",
-          phone: "+447123456789",
-          seats: 3,
-          passengers: [{ name: "Luc B.", phone: "+447987654321" }]
-        }
-      ],
-      unassigned: []
-    },
-    {
-      id: "m2",
-      opponent: "Hampstead & Westminster",
-      date: "Samedi 17 Oct - 15:30",
-      location: "Paddington Recreation Ground",
-      drivers: [],
-      unassigned: []
-    }
-  ];
-
-  function formatPhoneForWhatsApp(phone) {
-    return phone.replace(/[^0-9]/g, '');
-  }
-
-  function renderContactButtons(phone, name) {
-    if (!phone) return '';
-    const cleanPhone = formatPhoneForWhatsApp(phone);
-    const msg = encodeURIComponent(`Salut ${name}, à propos du match Surbiton HC...`);
-    return `
-      <span class="contact-links">
-        <a class="btn-contact btn-wa" href="https://wa.me/${cleanPhone}?text=${msg}" target="_blank">💬 WA</a>
-        <a class="btn-contact btn-sms" href="sms:${phone}">📱 SMS</a>
-      </span>
-    `;
-  }
-
-  function renderMatches() {
-    const container = document.getElementById('matchesContainer');
-    container.innerHTML = '';
-
-    matchesData.forEach((match, index) => {
-      const card = document.createElement('div');
-      card.className = `match-card ${index === 0 ? 'active' : ''}`; // Premier match ouvert par défaut
-      
-      // Construction des véhicules
-      let driversHTML = '';
-      if (match.drivers.length === 0) {
-        driversHTML = '<div style="font-size:0.8rem; color:#888;">Aucun véhicule pour l\'instant.</div>';
-      } else {
-        match.drivers.forEach(d => {
-          const freeSeats = d.seats - d.passengers.length;
-          let passHTML = '';
-          d.passengers.forEach(p => {
-            passHTML += `
-              <div class="passenger-item">
-                <span>👤 ${p.name}</span>
-                ${renderContactButtons(p.phone, p.name)}
-              </div>
-            `;
-          });
-
-          driversHTML += `
-            <div class="driver-card">
-              <div class="driver-head">
-                <div>
-                  <span class="driver-name">🚘 ${d.name}</span>
-                  <span class="badge-seats">${freeSeats} place(s) libre(s)</span>
-                </div>
-                ${renderContactButtons(d.phone, d.name)}
-              </div>
-              ${d.passengers.length > 0 ? `<div class="passenger-mini-list">${passHTML}</div>` : ''}
-            </div>
-          `;
-        });
-      }
-
-      // Construction des passagers en attente
-      let unassignedHTML = '';
-      if (match.unassigned.length > 0) {
-        let items = '';
-        match.unassigned.forEach(p => {
-          items += `
-            <div class="passenger-item">
-              <span>👤 ${p.name}</span>
-              ${renderContactButtons(p.phone, p.name)}
-            </div>
-          `;
-        });
-        unassignedHTML = `
-          <div class="section-title">En recherche de voiture</div>
-          <div class="driver-card">${items}</div>
-        `;
-      }
-
-      // Options du select véhicule
-      let driverOptions = '<option value="">-- Pas de préférence --</option>';
-      match.drivers.forEach(d => {
-        if (d.seats - d.passengers.length > 0) {
-          driverOptions += `<option value="${d.id}">${d.name} (${d.seats - d.passengers.length} pl.)</option>`;
-        }
-      });
-
-      card.innerHTML = `
-        <div class="match-header" onclick="toggleMatch('${match.id}')">
-          <div>
-            <div class="match-title">${match.opponent}</div>
-            <div class="match-info">📅 ${match.date} | 📍 ${match.location}</div>
-          </div>
-          <span class="arrow">▼</span>
-        </div>
-
-        <div class="match-body" id="body-${match.id}">
-          <div class="action-buttons">
-            <button class="btn-action btn-offer" onclick="toggleForm('${match.id}', 'offer')">🚘 Proposer</button>
-            <button class="btn-action btn-request" onclick="toggleForm('${match.id}', 'request')">🙋‍♂️ Demander</button>
-          </div>
-
-          <!-- Formulaire Proposer -->
-          <div class="form-box" id="form-offer-${match.id}">
-            <h4>Proposer un véhicule</h4>
-            <form onsubmit="handleOffer(event, '${match.id}')">
-              <div class="form-group">
-                <label>Nom complet</label>
-                <input type="text" required id="off-name-${match.id}">
-              </div>
-              <div class="form-group">
-                <label>Téléphone Mobile (ex: +44...)</label>
-                <input type="tel" pattern="^\\+[1-9]\\d{1,14}$" placeholder="+447123456789" required id="off-phone-${match.id}">
-              </div>
-              <div class="form-group">
-                <label>Places disponibles</label>
-                <input type="number" min="1" max="8" value="3" required id="off-seats-${match.id}">
-              </div>
-              <button type="submit" class="btn-submit">Valider le véhicule</button>
-            </form>
-          </div>
-
-          <!-- Formulaire Demander -->
-          <div class="form-box" id="form-request-${match.id}">
-            <h4>Demander une place</h4>
-            <form onsubmit="handleRequest(event, '${match.id}')">
-              <div class="form-group">
-                <label>Nom complet</label>
-                <input type="text" required id="req-name-${match.id}">
-              </div>
-              <div class="form-group">
-                <label>Téléphone Mobile (ex: +44...)</label>
-                <input type="tel" pattern="^\\+[1-9]\\d{1,14}$" placeholder="+447987654321" required id="req-phone-${match.id}">
-              </div>
-              <div class="form-group">
-                <label>Choisir un chauffeur</label>
-                <select id="req-driver-${match.id}">${driverOptions}</select>
-              </div>
-              <button type="submit" class="btn-submit">Envoyer la demande</button>
-            </form>
-          </div>
-
-          <div class="section-title">Véhicules disponibles</div>
-          ${driversHTML}
-          ${unassignedHTML}
-        </div>
-      `;
-
-      container.appendChild(card);
-    });
-  }
-
-  function toggleMatch(matchId) {
-    const card = document.getElementById(`body-${matchId}`).parentElement;
-    card.classList.toggle('active');
-  }
-
-  function toggleForm(matchId, type) {
-    const offerBox = document.getElementById(`form-offer-${matchId}`);
-    const requestBox = document.getElementById(`form-request-${matchId}`);
-
-    if (type === 'offer') {
-      offerBox.classList.toggle('active');
-      requestBox.classList.remove('active');
-    } else {
-      requestBox.classList.toggle('active');
-      offerBox.classList.remove('active');
-    }
-  }
-
-  function handleOffer(e, matchId) {
-    e.preventDefault();
-    const match = matchesData.find(m => m.id === matchId);
-    const name = document.getElementById(`off-name-${matchId}`).value;
-    const phone = document.getElementById(`off-phone-${matchId}`).value;
-    const seats = parseInt(document.getElementById(`off-seats-${matchId}`).value);
-
-    match.drivers.push({
-      id: Date.now().toString(),
-      name, phone, seats,
-      passengers: []
-    });
-
-    renderMatches();
-  }
-
-  function handleRequest(e, matchId) {
-    e.preventDefault();
-    const match = matchesData.find(m => m.id === matchId);
-    const name = document.getElementById(`req-name-${matchId}`).value;
-    const phone = document.getElementById(`req-phone-${matchId}`).value;
-    const driverId = document.getElementById(`req-driver-${matchId}`).value;
-
-    const passenger = { name, phone };
-
-    if (driverId) {
-      const driver = match.drivers.find(d => d.id === driverId);
-      if (driver && driver.passengers.length < driver.seats) {
-        driver.passengers.push(passenger);
-      } else {
-        alert("Ce véhicule est complet. Ajouté en liste d'attente.");
-        match.unassigned.push(passenger);
-      }
-    } else {
-      match.unassigned.push(passenger);
-    }
-
-    renderMatches();
-  }
-
-  renderMatches();
-</script>
-
-</body>
-</html>
-    label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 5px;
-      font-size: 0.9rem;
-    }
-
-    input, select {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      box-sizing: border-box;
-      font-size: 0.95rem;
-    }
-
-    small {
-      display: block;
-      color: #666;
-      font-size: 0.78rem;
-      margin-top: 4px;
-    }
-
-    button {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      padding: 12px 18px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      width: 100%;
-      font-size: 0.95rem;
-      transition: background 0.2s;
-    }
-
-    button:hover {
-      background-color: #001f48;
-    }
-
-    /* Styles pour la liste des voitures et passagers */
-    .driver-item {
-      border: 1px solid #e1e4e8;
-      border-radius: 6px;
-      padding: 15px;
-      margin-bottom: 15px;
-      background: #fafbfc;
-    }
-
-    .driver-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .passenger-list {
-      margin-top: 10px;
-      padding-left: 0;
-      list-style: none;
-    }
-
-    .passenger-item {
-      background: #fff;
-      border: 1px solid #eaeaea;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-top: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    /* Style des boutons Contact */
-    .contact-actions {
-      display: inline-flex;
-      gap: 6px;
-    }
-
-    .btn-contact {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      text-decoration: none;
-      font-weight: 600;
-      color: white;
-    }
-
-    .btn-wa { background-color: #25D366; }
-    .btn-wa:hover { background-color: #1da851; }
-    .btn-sms { background-color: #007aff; }
-    .btn-sms:hover { background-color: #0056b3; }
-
-    .badge {
-      background-color: #e30613;
-      color: white;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-    }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h1>🏒 Surbiton HC - Gestion Covoiturage</h1>
-
-  <div class="grid">
-    <!-- Formulaire 1: Offrir un trajet -->
-    <div class="card">
-      <h2>🚘 Proposer un véhicule</h2>
-      <form id="offerForm">
-        <div class="form-group">
-          <label for="driverName">Nom complet :</label>
-          <input type="text" id="driverName" required placeholder="ex: Alex Smith">
-        </div>
-        <div class="form-group">
-          <label for="driverPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="driverPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447123456789" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="seats">Places disponibles dans le véhicule :</label>
-          <input type="number" id="seats" min="1" max="8" value="3" required>
-        </div>
-        <button type="submit">Enregistrer le véhicule</button>
-      </form>
-    </div>
-
-    <!-- Formulaire 2: Demander un trajet -->
-    <div class="card">
-      <h2>🙋‍♂️ Demander un trajet</h2>
-      <form id="requestForm">
-        <div class="form-group">
-          <label for="passengerName">Nom complet :</label>
-          <input type="text" id="passengerName" required placeholder="ex: Sam Taylor">
-        </div>
-        <div class="form-group">
-          <label for="passengerPhone">Numéro WhatsApp / Mobile :</label>
-          <input type="tel" id="passengerPhone" pattern="^\+[1-9]\d{1,14}$" placeholder="+447987654321" required>
-          <small>Format international requis avec l'indicatif (ex: +44... ou +33...)</small>
-        </div>
-        <div class="form-group">
-          <label for="preferredDriver">Chauffeur / Véhicule préféré :</label>
-          <select id="preferredDriver">
-            <option value="">-- Pas de préférence (Liste d'attente) --</option>
-          </select>
-        </div>
-        <button type="submit">Envoyer ma demande</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Affichage du Dashboard -->
-  <div class="card">
-    <h2>📋 Répartition des Trajets</h2>
-    <div id="driversList"></div>
-    
-    <h3 style="margin-top:20px; color: var(--primary);">Passagers en attente d'attribution</h3>
-    <ul id="unassignedList" class="passenger-list"></ul>
-  </div>
-</div>
-
-<script>
-  // État de l'application
-  let drivers = [];
-  let unassignedPassengers = [];
-
-  // Fonction utilitaire pour nettoyer le téléphone pour WhatsApp
-  function formatPhoneForWhatsApp(phone) {
-    return phone.replace(/[^0-9]/g, '');
-  }
-
-  // Générateur HTML des boutons de contact
-  function renderContactButtons(phone, name) {
-    if (!phone) return '';
-    const cleanPhone = formatPhoneForWhatsApp(phone);
-    const encodedMsg = encodeURIComponent(`Salut ${name}, à propos du covoiturage Surbiton HC...`);
-    
-    return `
-      <span class="contact-actions">
-        <a class="btn-contact btn-wa" href="https://wa.me/${cleanPhone}?text=${encodedMsg}" target="_blank" title="Envoyer WhatsApp">
-          💬 WA
-        </a>
-        <a class="btn-contact btn-sms" href="sms:${phone}" title="Envoyer SMS">
-          📱 SMS
-        </a>
-      </span>
-    `;
-  }
-
-  // Mettre à jour la liste déroulante des chauffeurs
-  function updateDriverDropdown() {
-    const select = document.getElementById('preferredDriver');
-    select.innerHTML = '<option value="">-- Pas de préférence (Liste d\'attente) --</option>';
-    
-    drivers.forEach(driver => {
-      const remainingSeats = driver.seats - driver.passengers.length;
-      if (remainingSeats > 0) {
-        const option = document.createElement('option');
-        option.value = driver.id;
-        option.textContent = `${driver.name} (${remainingSeats} place(s) libre(s))`;
-        select.appendChild(option);
-      }
-    });
-  }
-
-  // Rendu global de l'interface
-  function render() {
-    const driversContainer = document.getElementById('driversList');
-    driversContainer.innerHTML = '';
-
-    if (drivers.length === 0) {
-      driversContainer.innerHTML = '<p style="color:#777;">Aucun véhicule proposé pour le moment.</p>';
-    } else {
-      drivers.forEach(driver => {
-        const remainingSeats = driver.seats - driver.passengers.length;
-        
-        let passengersHTML = '';
-        driver.passengers.forEach(p => {
-          passengersHTML += `
-            <li class="passenger-item">
-              <span>👤 ${p.name}</span>
-              ${renderContactButtons(p.phone, p.name)}
-            </li>
-          `;
-        });
-
-        const driverCard = document.createElement('div');
-        driverCard.className = 'driver-item';
-        driverCard.innerHTML = `
-          <div class="driver-header">
-            <div>
-              <strong>🚘 ${driver.name}</strong> 
-              ${renderContactButtons(driver.phone, driver.name)}
-            </div>
-            <span class="badge">${remainingSeats} / ${driver.seats} places libres</span>
-          </div>
-          <div><strong>Passagers inscrits :</strong></div>
-          <ul class="passenger-list">
-            ${passengersHTML || '<li style="color:#888; font-size:0.85rem; padding:4px;">Aucun passager pour l\'instant.</li>'}
-          </ul>
-        `;
-        driversContainer.appendChild(driverCard);
-      });
-    }
-
-    // Passagers en attente
-    const unassignedContainer = document.getElementById('unassignedList');
-    unassignedContainer.innerHTML = '';
-    
-    if (unassignedPassengers.length === 0) {
-      unassignedContainer.innerHTML = '<li style="color:#777; border:none;">Aucun passager en attente.</li>';
-    } else {
-      unassignedPassengers.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'passenger-item';
-        li.innerHTML = `
-          <span>👤 ${p.name}</span>
-          ${renderContactButtons(p.phone, p.name)}
-        `;
-        unassignedContainer.appendChild(li);
-      });
-    }
-
-    updateDriverDropdown();
-  }
-
-  // Gestion formulaire : Offrir un trajet
-  document.getElementById('offerForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('driverName').value;
-    const phone = document.getElementById('driverPhone').value;
-    const seats = parseInt(document.getElementById('seats').value);
-
-    drivers.push({
-      id: Date.now().toString(),
-      name: name,
-      phone: phone,
-      seats: seats,
-      passengers: []
-    });
-
-    this.reset();
-    render();
-  });
-
-  // Gestion formulaire : Demander un trajet
-  document.getElementById('requestForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const name = document.getElementById('passengerName').value;
-    const phone = document.getElementById('passengerPhone').value;
-    const preferredDriverId = document.getElementById('preferredDriver').value;
-
-    const passengerData = { name, phone };
-
-    if (preferredDriverId) {
-      const driver = drivers.find(d => d.id === preferredDriverId);
-      if (driver && driver.passengers.length < driver.seats) {
-        driver.passengers.push(passengerData);
-      } else {
-        alert("Ce véhicule est complet. Vous êtes placé en liste d'attente.");
-        unassignedPassengers.push(passengerData);
-      }
-    } else {
-      unassignedPassengers.push(passengerData);
-    }
-
-    this.reset();
-    render();
-  });
-
-  // Initialisation
-  render();
-</script>
-
-</body>
-</html>    </div>
   </header>
 
   <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -2262,7 +77,8 @@
     <div class="space-y-2">
       <div class="flex items-center justify-between">
         <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Away Fixture</div>
-        <button onclick="openAddMatchModal()" class="text-xs bg-shc-green hover:bg-shc-greenDark text-white font-bold px-3 py-1 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+        <!-- Add Match Button (Captain only) -->
+        <button id="btnAddMatch" onclick="openAddMatchModal()" class="hidden text-xs bg-shc-green hover:bg-shc-greenDark text-white font-bold px-3 py-1 rounded-lg transition items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-plus text-[10px]"></i> Add Match
         </button>
       </div>
@@ -2281,7 +97,8 @@
 
           <div class="flex items-center gap-3">
             <h2 id="matchOpponentTitle" class="text-2xl sm:text-3xl font-bold text-shc-green tracking-tight">vs ---</h2>
-            <button onclick="openEditMatchModal()" class="text-xs text-slate-600 hover:text-shc-green bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1.5">
+            <!-- Edit Match Button (Captain only) -->
+            <button id="btnEditMatch" onclick="openEditMatchModal()" class="hidden text-xs text-slate-600 hover:text-shc-green bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded-lg transition items-center gap-1.5">
               <i class="fa-solid fa-pen-to-square text-[11px]"></i> Edit Venue
             </button>
           </div>
@@ -2307,7 +124,7 @@
         <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 min-w-[260px] space-y-3">
           <div class="flex items-center justify-between">
             <span id="statusBadge" class="text-xs font-bold px-2.5 py-1 rounded-md">Checking...</span>
-            <button onclick="window.autoAssignPassengers()" title="Optimize driver assignment based on locations" class="text-xs bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+            <button onclick="window.autoAssignPassengers()" title="Optimize driver assignment based on minimal route detour" class="text-xs bg-amber-500 hover:bg-amber-600 text-white font-bold px-2.5 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
               <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-assign
             </button>
           </div>
@@ -2526,10 +343,6 @@
           </div>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Planned Departure Time (Optional)</label>
-          <input type="text" id="driverDepartureTime" placeholder="e.g. 11:15" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
-        </div>
-        <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
           <input type="text" id="driverNotes" placeholder="e.g. Leaving near Sugden Rd" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-shc-green">
         </div>
@@ -2633,7 +446,7 @@
         { id: 'eh-3', opponent: 'Spencer 6s', venueName: 'Fieldview Pitch Wandsworth', postcode: 'SW18 3HF', date: '2026-11-07', convocationTime: '10:15', kickoffTime: '11:30', coords: [51.4439, -0.1834] }
       ],
       cars: [
-        { id: 'car-1', matchId: 'eh-1', driverName: 'Edward K.', seatsTotal: 4, carModel: 'BMW X3', postcode: 'KT6 4BN', startLocation: 'Surbiton Station', startCoords: [51.3932, -0.3038], notes: 'Leaving near Sugden Rd', departureTime: '11:15' }
+        { id: 'car-1', matchId: 'eh-1', driverName: 'Edward K.', seatsTotal: 4, carModel: 'BMW X3', postcode: 'KT6 4BN', startLocation: 'Surbiton Station', startCoords: [51.3932, -0.3038], notes: 'Leaving near Sugden Rd', customDepartureTime: null }
       ],
       passengers: [
         { id: 'pass-1', matchId: 'eh-1', name: 'Harry B.', postcode: 'KT6 4BN', pickupLocation: 'Surbiton Station', pickupCoords: [51.3930, -0.3035], assignedCarId: 'car-1' },
@@ -2646,6 +459,7 @@
     let db = { matches: [], cars: [], passengers: [] };
     let currentMatchId = null;
     let activeAssignPassengerId = null;
+    let isCaptain = false;
     let map = null, mapMarkers = [], mapPolylines = [];
 
     // Realtime Listener
@@ -2688,6 +502,85 @@
     function saveState() {
       set(dbRef, db);
     }
+
+    // CAPTAIN MODE LOGIC
+    window.toggleCaptainMode = function() {
+      if (isCaptain) {
+        isCaptain = false;
+        updateCaptainUI();
+        showToast('Captain mode deactivated');
+      } else {
+        const pin = prompt('Enter Captain PIN code (default: 1874):');
+        if (pin === '1874') {
+          isCaptain = true;
+          updateCaptainUI();
+          showToast('Captain mode activated!');
+        } else if (pin !== null) {
+          alert('Incorrect PIN code.');
+        }
+      }
+    };
+
+    function updateCaptainUI() {
+      const btnAdd = document.getElementById('btnAddMatch');
+      const btnEdit = document.getElementById('btnEditMatch');
+      const btnSync = document.getElementById('btnSyncFixtures');
+      const captainBtn = document.getElementById('captainToggleBtn');
+      const captainIcon = document.getElementById('captainIcon');
+      const captainLabel = document.getElementById('captainLabel');
+
+      if (isCaptain) {
+        btnAdd?.classList.remove('hidden');
+        btnAdd?.classList.add('flex');
+        btnEdit?.classList.remove('hidden');
+        btnEdit?.classList.add('flex');
+        btnSync?.classList.remove('hidden');
+        btnSync?.classList.add('flex');
+
+        captainBtn.className = "px-3 py-1.5 rounded-lg border border-amber-400 bg-amber-500 text-slate-900 font-bold text-xs transition flex items-center gap-1.5 shadow-sm";
+        captainIcon.className = "fa-solid fa-user-shield text-slate-900";
+        captainLabel.innerText = "Captain Active";
+      } else {
+        btnAdd?.classList.add('hidden');
+        btnAdd?.classList.remove('flex');
+        btnEdit?.classList.add('hidden');
+        btnEdit?.classList.remove('flex');
+        btnSync?.classList.add('hidden');
+        btnSync?.classList.remove('flex');
+
+        captainBtn.className = "px-3 py-1.5 rounded-lg border border-amber-400/40 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition flex items-center gap-1.5";
+        captainIcon.className = "fa-solid fa-user-lock";
+        captainLabel.innerText = "Captain Mode";
+      }
+    }
+
+    // GOOGLE MAPS NAVIGATION & WAYPOINTS GENERATOR
+    function buildGoogleMapsUrl(car, match, onboardPassengers) {
+      if (!car || !match) return '#';
+      const origin = encodeURIComponent(`${car.postcode}, UK`);
+      const destination = encodeURIComponent(`${match.postcode}, UK`);
+
+      const waypoints = onboardPassengers
+        .map(p => p.postcode ? encodeURIComponent(`${p.postcode}, UK`) : null)
+        .filter(Boolean);
+
+      let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+      if (waypoints.length > 0) {
+        url += `&waypoints=${waypoints.join('|')}`;
+      }
+      url += `&travelmode=driving`;
+      return url;
+    }
+
+    // DRIVER DEPARTURE TIME CUSTOMIZATION
+    window.updateDriverDepartureTime = function(carId, newTime) {
+      const car = db.cars.find(c => c.id === carId);
+      if (car) {
+        car.customDepartureTime = newTime.trim() || null;
+        saveState();
+        showToast('Departure time updated');
+      }
+    };
 
     function initMap() {
       if (!map) {
@@ -2765,18 +658,6 @@
       return `${String(depHours).padStart(2, '0')}:${String(depMins).padStart(2, '0')}`;
     }
 
-    function generateGoogleMapsUrl(originPostcode, destPostcode, waypointsPostcodes = []) {
-      const originStr = encodeURIComponent(originPostcode);
-      const destStr = encodeURIComponent(destPostcode);
-      let url = `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destStr}`;
-
-      if (waypointsPostcodes.length > 0) {
-        const waypointsStr = waypointsPostcodes.map(wp => encodeURIComponent(wp)).join('|');
-        url += `&waypoints=${waypointsStr}`;
-      }
-      return url;
-    }
-
     function renderTabs() {
       const container = document.getElementById('matchTabsContainer');
       if (db.matches.length === 0) {
@@ -2810,18 +691,10 @@
       document.getElementById('matchConvocationTime').innerText = match.convocationTime;
       document.getElementById('matchKickoffTime').innerText = match.kickoffTime;
 
+      updateCaptainUI();
       await renderCarsAndPassengers(match);
       await updateMapMarkersAndRoutes();
     }
-
-    window.updateDriverDepartureTime = function(carId, newTime) {
-      const car = db.cars.find(c => c.id === carId);
-      if (car) {
-        car.departureTime = newTime.trim();
-        saveState();
-        showToast('Departure time updated!');
-      }
-    };
 
     async function renderCarsAndPassengers(match) {
       const matchCars = db.cars.filter(c => c.matchId === currentMatchId);
@@ -2861,6 +734,9 @@
               <div class="text-[11px] text-slate-500">
                 <i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${escapeHtml(p.pickupLocation)} <span class="font-mono text-slate-700">(${escapeHtml(p.postcode)})</span>
               </div>
+              <div class="text-[10px] text-shc-magenta font-semibold mt-1">
+                <i class="fa-solid fa-clock mr-1"></i>Est. Pickup: <strong>${pickupTime}</strong> (${travelMins} min drive)
+              </div>
             </div>
             <div class="flex items-center gap-2">
               <button onclick="window.openAssignModal('${p.id}')" class="px-2.5 py-1 rounded bg-shc-green hover:bg-shc-greenDark text-white text-[11px] font-bold transition">Assign</button>
@@ -2886,16 +762,19 @@
         if (car.startCoords && match.coords) {
           carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
         }
-        const defaultDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
-        const activeDepartureTime = car.departureTime || defaultDepartureTime;
-
-        const waypointsPostcodes = onboard.map(p => p.postcode).filter(Boolean);
-        const gmapsUrl = generateGoogleMapsUrl(car.postcode, match.postcode, waypointsPostcodes);
+        const calcDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+        const displayDepartureTime = car.customDepartureTime || calcDepartureTime;
 
         const onboardHtmlPromises = onboard.map(async (p) => {
+          let pTravelMins = carTravelMins;
+          if (p.pickupCoords && match.coords) {
+            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
+          }
+          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+
           return `
             <div class="flex items-center justify-between text-[11px] text-slate-700 py-0.5">
-              <span>🙋 ${escapeHtml(p.name)} <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span></span>
+              <span>🙋 ${escapeHtml(p.name)} <span class="text-slate-400">(${escapeHtml(p.pickupLocation)})</span> — <strong class="text-shc-magenta">Pickup: ${pPickupTime}</strong></span>
               <button onclick="window.unassignPassenger('${p.id}')" class="text-slate-400 hover:text-amber-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
           `;
@@ -2903,6 +782,7 @@
 
         const onboardCards = await Promise.all(onboardHtmlPromises);
         const routeColor = ROUTE_COLORS[idx % ROUTE_COLORS.length];
+        const googleMapsNavUrl = buildGoogleMapsUrl(car, match, onboard);
 
         return `
           <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3 relative overflow-hidden">
@@ -2913,30 +793,25 @@
                   ${escapeHtml(car.driverName)}
                   ${car.carModel ? `<span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-semibold">${escapeHtml(car.carModel)}</span>` : ''}
                 </div>
-                <div class="text-[11px] text-slate-500 mt-0.5">
-                  From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)})
+                <div class="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>From ${escapeHtml(car.startLocation)} (${escapeHtml(car.postcode)})</span>
+                  <span>•</span>
+                  <span class="text-shc-green font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-car-side"></i>Depart: 
+                    <input type="text" value="${displayDepartureTime}" onchange="window.updateDriverDepartureTime('${car.id}', this.value)" title="Click to adjust driver departure time" class="w-12 bg-white border border-slate-300 rounded text-center px-1 text-slate-900 font-bold focus:outline-none focus:border-shc-green">
+                  </span>
+                  <span class="text-slate-400">(${carTravelMins} min)</span>
                 </div>
               </div>
               <div class="flex items-center gap-1.5">
-                <a href="${gmapsUrl}" target="_blank" title="Check live traffic & route on Google Maps" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
-                  <i class="fa-solid fa-location-arrow text-[10px]"></i> <span class="hidden sm:inline">Google Maps</span>
+                <a href="${googleMapsNavUrl}" target="_blank" rel="noopener noreferrer" title="Open Google Maps Route with all waypoints" class="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
+                  <i class="fa-solid fa-map-location-dot text-xs"></i> <span class="hidden sm:inline">Open GPS</span>
                 </a>
-                <button onclick="window.shareCarWhatsApp('${car.id}')" title="Send car schedule on WhatsApp" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
+                <button onclick="window.shareCarWhatsApp('${car.id}')" title="Send car schedule & GPS link on WhatsApp" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
                   <i class="fa-brands fa-whatsapp text-xs"></i> <span class="hidden sm:inline">WhatsApp</span>
                 </button>
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded ${seatsFree > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${seatsFree} free</span>
                 <button onclick="window.deleteCar('${car.id}')" class="text-slate-400 hover:text-red-500 text-xs pl-1"><i class="fa-solid fa-trash"></i></button>
-              </div>
-            </div>
-
-            <!-- Departure Time Editable Section -->
-            <div class="bg-white p-2 rounded-lg border border-slate-200 flex items-center justify-between gap-2">
-              <span class="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                <i class="fa-solid fa-clock text-shc-green"></i> Departure Time:
-              </span>
-              <div class="flex items-center gap-1.5">
-                <input type="text" value="${escapeHtml(activeDepartureTime)}" onchange="window.updateDriverDepartureTime('${car.id}', this.value)" class="w-16 text-center font-bold text-xs bg-slate-50 border border-slate-300 rounded px-1 py-0.5 text-shc-green focus:outline-none focus:border-shc-green">
-                <span class="text-[10px] text-slate-400">(Editable)</span>
               </div>
             </div>
 
@@ -3034,6 +909,7 @@
         }
       });
 
+      // Passagers non attribués en orange
       matchPassengers.filter(p => !p.assignedCarId).forEach(p => {
         if (p.pickupCoords) {
           const pm = L.marker(p.pickupCoords, {
@@ -3053,6 +929,7 @@
       }
     }
 
+    // SMART AUTO-ASSIGNMENT ALGORITHM (MINIMAL DETOUR OPTIMIZATION)
     window.autoAssignPassengers = async function() {
       const match = db.matches.find(m => m.id === currentMatchId);
       if (!match) return;
@@ -3075,16 +952,21 @@
 
       for (const p of unassigned) {
         let bestCar = null;
-        let minDistance = Infinity;
+        let minDetour = Infinity;
 
         for (const c of matchCars) {
           const onboard = matchPassengers.filter(pass => pass.assignedCarId === c.id);
           const seatsFree = c.seatsTotal - onboard.length;
 
-          if (seatsFree > 0 && c.startCoords && p.pickupCoords) {
-            const dist = getDistanceKm(c.startCoords, p.pickupCoords);
-            if (dist < minDistance) {
-              minDistance = dist;
+          if (seatsFree > 0 && c.startCoords && p.pickupCoords && match.coords) {
+            // Direct distance Driver -> Pitch
+            const directDist = getDistanceKm(c.startCoords, match.coords);
+            // Distance Driver -> Passenger -> Pitch
+            const detourDist = getDistanceKm(c.startCoords, p.pickupCoords) + getDistanceKm(p.pickupCoords, match.coords);
+            const detour = detourDist - directDist;
+
+            if (detour < minDetour) {
+              minDetour = detour;
               bestCar = c;
             }
           }
@@ -3098,7 +980,7 @@
 
       if (assignedCount > 0) {
         saveState();
-        showToast(`Auto-assigned ${assignedCount} passenger(s) by proximity!`);
+        showToast(`Auto-assigned ${assignedCount} passenger(s) by minimal route detour!`);
       } else {
         showToast('No free seats available in vehicles.');
       }
@@ -3115,30 +997,34 @@
       if (car.startCoords && match.coords) {
         carTravelMins = await getOSRMTravelMinutes(car.startCoords, match.coords);
       }
-      const defaultDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
-      const activeDepartureTime = car.departureTime || defaultDepartureTime;
+      const calcDepartureTime = calculateDepartureTime(match.convocationTime, carTravelMins + 5);
+      const displayDepartureTime = car.customDepartureTime || calcDepartureTime;
 
-      const waypointsPostcodes = onboard.map(p => p.postcode).filter(Boolean);
-      const gmapsUrl = generateGoogleMapsUrl(car.postcode, match.postcode, waypointsPostcodes);
+      const googleMapsNavUrl = buildGoogleMapsUrl(car, match, onboard);
 
       let msg = `🚗 *Surbiton HC Carpool - Schedule*\n\n`;
       msg += `Match: *vs ${match.opponent}* (${formatDate(match.date)})\n`;
       msg += `Driver: *${car.driverName}* (${car.carModel || 'Car'})\n`;
       msg += `📍 Departure Point: ${car.startLocation} (${car.postcode})\n`;
-      msg += `⏰ Confirmed Departure Time: *${activeDepartureTime}*\n\n`;
+      msg += `⏰ Departure Time: *${displayDepartureTime}*\n\n`;
       msg += `*Passenger Pickups:*\n`;
 
       if (onboard.length === 0) {
         msg += `_No passengers assigned yet_\n`;
       } else {
         for (const p of onboard) {
-          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode})\n`;
+          let pTravelMins = carTravelMins;
+          if (p.pickupCoords && match.coords) {
+            pTravelMins = await getOSRMTravelMinutes(p.pickupCoords, match.coords);
+          }
+          const pPickupTime = calculateDepartureTime(match.convocationTime, pTravelMins + 5);
+          msg += `• *${p.name}* at ${p.pickupLocation} (${p.postcode}) -> Pickup at *${pPickupTime}*\n`;
         }
       }
 
       msg += `\n🏟 Pitch: ${match.venueName} (${match.postcode})\n`;
       msg += `⏰ Meet Time: ${match.convocationTime}\n\n`;
-      msg += `🗺 *Open GPS Route in Google Maps:*\n${gmapsUrl}`;
+      msg += `🗺 *Google Maps GPS Route:* ${googleMapsNavUrl}`;
 
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
       window.open(whatsappUrl, '_blank');
@@ -3162,13 +1048,20 @@
       window.open(whatsappUrl, '_blank');
     };
 
+    // MANUAL MATCH ADDITION HANDLERS (Captain Protected)
     window.openAddMatchModal = function() {
+      if (!isCaptain) {
+        alert('Only the Team Captain can add matches.');
+        return;
+      }
       document.getElementById('addMatchForm').reset();
       document.getElementById('addMatchModal').classList.remove('hidden');
     };
 
     window.handleAddMatchSubmit = async function(e) {
       e.preventDefault();
+      if (!isCaptain) return;
+
       const postcode = document.getElementById('addMatchPostcode').value.toUpperCase().trim();
       const venueName = document.getElementById('addMatchVenueName').value;
       const opponent = document.getElementById('addMatchOpponent').value;
@@ -3200,6 +1093,10 @@
     };
 
     window.openEditMatchModal = function() {
+      if (!isCaptain) {
+        alert('Only the Team Captain can edit matches.');
+        return;
+      }
       const match = db.matches.find(m => m.id === currentMatchId);
       if (!match) return;
 
@@ -3215,6 +1112,8 @@
 
     window.handleEditMatchSubmit = async function(e) {
       e.preventDefault();
+      if (!isCaptain) return;
+
       const match = db.matches.find(m => m.id === currentMatchId);
       if (match) {
         match.opponent = document.getElementById('editMatchOpponent').value;
@@ -3236,6 +1135,10 @@
     };
 
     window.deleteCurrentMatch = function() {
+      if (!isCaptain) {
+        alert('Only the Team Captain can delete matches.');
+        return;
+      }
       if (!currentMatchId) return;
       if (confirm('Are you sure you want to delete this fixture? All players will see it removed in real-time.')) {
         db.matches = db.matches.filter(m => m.id !== currentMatchId);
@@ -3304,7 +1207,6 @@
       e.preventDefault();
       const pc = document.getElementById('driverPostcode').value.toUpperCase().trim();
       const loc = document.getElementById('driverStartLocation').value || pc;
-      const depTime = document.getElementById('driverDepartureTime').value || '';
       const coords = await geocodeUKPostcode(pc, loc) || [51.3932 + (Math.random()-0.5)*0.02, -0.3038 + (Math.random()-0.5)*0.02];
 
       db.cars.push({
@@ -3315,9 +1217,9 @@
         carModel: document.getElementById('driverCarModel').value,
         postcode: pc,
         startLocation: loc,
-        departureTime: depTime,
         startCoords: coords,
-        notes: document.getElementById('driverNotes').value
+        notes: document.getElementById('driverNotes').value,
+        customDepartureTime: null
       });
 
       saveState();
@@ -3366,6 +1268,7 @@
     };
 
     window.syncEnglandHockeyFixtures = function() {
+      if (!isCaptain) return;
       document.getElementById('syncBtn').innerText = 'Syncing...';
       setTimeout(() => {
         db.matches.push({ id: 'eh-' + Date.now(), opponent: 'Merton 3s', venueName: 'Morden Recreation Ground', postcode: 'SM4 4AT', date: '2026-11-21', convocationTime: '11:00', kickoffTime: '12:15', coords: [51.3965, -0.1982] });
@@ -3393,6 +1296,7 @@
 
     // UI Helpers
     window.openOfferModal = function() { document.getElementById('offerModal').classList.remove('hidden'); };
+    window.openSyncModal = function() { if(isCaptain) document.getElementById('syncModal').classList.remove('hidden'); };
     window.closeModal = function(id) { document.getElementById(id).classList.add('hidden'); };
     function formatDate(d) { if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}`; }
     function escapeHtml(s) { return (s||'').replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
